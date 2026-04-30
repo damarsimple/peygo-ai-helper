@@ -1,5 +1,4 @@
 from google.adk import Agent
-from google.adk.agents import SequentialAgent
 from google.adk.models.lite_llm import LiteLlm
 import os
 
@@ -17,47 +16,60 @@ from backend.worker.callbacks import (
     on_tool_error,
 )
 
-# Import schema
-from backend.schemas import AgentOutputForLLM
-from backend.tools.llm_utils import build_json_schema
-
 # ── Prompts ──────────────────────────────────────────────────────────────
 
-SYSTEM_PROMPT_TOOL = """You are Pelgo CareerCoach — an autonomous agent that evaluates
+SYSTEM_PROMPT = """You are Pelgo CareerCoach — an autonomous agent that evaluates
 candidates against job descriptions and produces learning plans.
 
-## CANDIDATE TO EVALUATE
-{candidate_profile}
+## CONVERSATIONAL FLOW
+You operate in a conversational interface. Handle each user message independently:
 
-## RAW RESUME TEXT (use for semantic skill matching)
-{raw_resume_text}
+### PHASE 1: Data Collection (when data is missing)
+If session state lacks required data (candidate_profile, raw_resume_text, or
+job description), ask the user for what's missing. Be concise — one question
+at a time. Do NOT call tools or produce final_output until ALL required data
+is present.
 
-## JOB ID
-{job_id}
+### PHASE 2: Analysis (when all data is present)
+When you have ALL of: candidate_profile, raw_resume_text, AND job description:
+1. Call extract_jd_requirements(job_url_or_text=jd_input)
+2. Call score_candidate_against_requirements(candidate_profile, requirements, raw_resume_text)
+3. Call prioritise_skill_gaps(gap_skills, seniority_context)
+4. Call research_skill_resources for the TOP 1-2 prioritized gaps
+   (up to 4 research calls if confidence is "low")
 
-## YOUR DECISION-DRIVEN WORKFLOW
-You decide the tool-call sequence at runtime based on the data you discover.
-Follow these decision rules:
+### PHASE 3: Final Output
+After all tools complete, produce your final answer as a JSON object with this
+exact structure. Output ONLY the JSON, no markdown or explanation:
 
-1. ALWAYS START: Call extract_jd_requirements(job_url_or_text=jd_input)
-   to parse the job description into structured requirements.
+{{
+  "job_id": "<job_id>",
+  "overall_score": <int 0-100>,
+  "confidence": "low|medium|high",
+  "dimension_scores": {{"skills": <int>, "experience": <int>, "seniority_fit": <int>}},
+  "matched_skills": ["..."],
+  "gap_skills": ["..."],
+  "reasoning": "2-3 sentence plain-English explanation",
+  "learning_plan": [
+    {{
+      "skill": "...",
+      "priority_rank": 1,
+      "estimated_match_gain_pct": 15,
+      "resources": [{{"title": "...", "url": "...", "estimated_hours": 12, "type": "course", "relevance_score": 0.9}}],
+      "rationale": "..."
+    }}
+  ]
+}}
 
-2. ALWAYS SCORE: Call score_candidate_against_requirements(
-   candidate_profile=<candidate above>,
-   requirements=<step 1 output>,
-   raw_resume_text=<raw resume text above>
-   ) to compute match score and identify skill gaps.
+## DATA TO USE
+Read the following from session state:
+- candidate_profile: session.state["candidate_profile"]
+- raw_resume_text: session.state["raw_resume_text"]
+- job_id: session.state["job_id"]
 
-3. ALWAYS PRIORITIZE: Call prioritise_skill_gaps(
-   gap_skills=<step 2 gap_skills>,
-   seniority_context=<candidate seniority>
-   ) to rank which gaps matter most. This ensures you focus on critical gaps.
-
-4. FOCUSED RESEARCH: 
-   - Based on the priority ranking from step 3, call research_skill_resources
-     for the TOP 1-2 prioritized gaps.
-   - IF the original score.confidence was "low", you may research 1 additional
-     gap to gain better signal (max 4 total research calls).
+If the user sends a request with a job description and candidate info, use that
+data directly. If session state is empty, ask the user for:
+(1) a candidate profile/resume, and (2) a job description URL or text.
 
 ## SEMANTIC MATCHING INSTRUCTIONS
 When scoring, use SEMANTIC matching between candidate skills and job requirements:
@@ -67,7 +79,7 @@ When scoring, use SEMANTIC matching between candidate skills and job requirement
 - "Docker", "Kubernetes" → match "Containerization", "DevOps"
 
 ## TERMINATION
-Produce a final answer when you have:
+Produce final JSON output ONLY when you have:
 - A score with confidence assessment
 - Prioritized skill gaps with rationale
 - Learning resources for the highest-priority gaps
@@ -75,48 +87,6 @@ Produce a final answer when you have:
 Save all intermediate results to session state via tool_context.state.
 Your tool_context is the shared memory across tool calls.
 """
-
-SYSTEM_PROMPT_FORMATTER = '''You are a JSON Formatter for Pelgo CareerCoach.
-Construct the final structured output JSON using the data in session state:
-
-Score data: {score}
-Gap skills: {gap_skills}
-Job ID: {job_id}
-
-Build the learning_plan from the prioritized_gaps and research results.
-Each learning_plan item MUST have:
-- skill: the skill name
-- priority_rank: integer (1 = highest priority)
-- estimated_match_gain_pct: integer 0-100
-- resources: array of {title, url, estimated_hours, type, relevance_score}
-- rationale: why this skill should be learned first
-
-Return ONLY this exact JSON structure with ALL required fields:
-{{
-  "job_id": "<from job_id>",
-  "overall_score": <score.overall_score>,
-  "confidence": "<score.confidence: low|medium|high>",
-  "dimension_scores": {{
-    "skills": <score.dimension_scores.skills>,
-    "experience": <score.dimension_scores.experience>,
-    "seniority_fit": <score.dimension_scores.seniority_fit>
-  }},
-  "matched_skills": <score.matched_skills>,
-  "gap_skills": <gap_skills list>,
-  "reasoning": "2-3 sentence plain-English explanation of the overall match",
-  "learning_plan": [
-    {{
-      "skill": "skill_name",
-      "priority_rank": 1,
-      "estimated_match_gain_pct": 15,
-      "resources": [
-        {{"title": "...", "url": "...", "estimated_hours": 12, "type": "course", "relevance_score": 0.9}}
-      ],
-      "rationale": "Why this skill first"
-    }}
-  ]
-}}
-'''
 
 # ── Model Setup ──────────────────────────────────────────────────────────
 
@@ -139,14 +109,21 @@ llm_model = LiteLlm(
     drop_params=True,
 )
 
-# ── Agents ───────────────────────────────────────────────────────────────
-
-# Agent 1: Executes tools and populates session state
-tool_agent = Agent(
-    name="career_tool_agent",
-    description="Executes career coaching tools and saves intermediate results.",
+# ── Agent ─────────────────────────────────────────────────────────────────
+#
+# Single Agent with tools — replaces SequentialAgent.
+#
+# Why: SequentialAgent always runs ALL sub-agents in order. That meant the
+# formatter_agent ran even when the tool_agent hadn't collected data yet,
+# producing a bogus final_output on every turn (e.g. after "hello").
+#
+# With a single Agent, the LLM decides: "ask for data" vs "call tools" vs
+# "produce final JSON" — all in one conversation turn.
+agent = Agent(
+    name="career_coach",
+    description="Evaluates candidates against job descriptions and produces learning plans.",
     model=llm_model,
-    instruction=SYSTEM_PROMPT_TOOL,
+    instruction=SYSTEM_PROMPT,
     tools=[
         extract_jd_requirements,
         score_candidate_against_requirements,
@@ -157,21 +134,4 @@ tool_agent = Agent(
     before_tool_callback=before_tool,
     after_tool_callback=after_tool,
     on_tool_error_callback=on_tool_error,
-)
-
-# Agent 2: Formats session state into structured JSON (output_schema works without tools!)
-# Pass a flattened schema so llguidance can enforce it without $ref resolution
-formatter_agent = Agent(
-    name="career_formatter",
-    description="Formats intermediate results into structured JSON output.",
-    model=llm_model,
-    instruction=SYSTEM_PROMPT_FORMATTER,
-    output_schema=build_json_schema(AgentOutputForLLM),
-    output_key="final_output",
-)
-
-# ADK Canonical Pattern: SequentialAgent pipeline
-agent = SequentialAgent(
-    name="career_coach",
-    sub_agents=[tool_agent, formatter_agent],
 )

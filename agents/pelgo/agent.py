@@ -19,5 +19,8 @@ os.environ.setdefault("ADK_DATABASE_URL", os.getenv(
     "postgresql+asyncpg://pelgo:pelgo@localhost:5432/pelgo_adk",
 ))
 
-from backend.agents.career_coach import agent
+from backend.agents.career_coach import agent as root_agent
+
+# ADK web discovers the root agent via the 'agent' or 'root_agent' export
+agent = root_agent
 
