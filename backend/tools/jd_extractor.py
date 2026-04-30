@@ -75,6 +75,7 @@ async def extract_jd_requirements(
 
     Return ONLY this JSON — no markdown, no explanation:
     {{
+    "job_title": "Software Engineer",
     "required_skills": ["skill1", "skill2"],
     "nice_to_have_skills": ["skill3"],
     "seniority_level": "junior|mid|senior|lead",
@@ -96,6 +97,7 @@ async def extract_jd_requirements(
 
     Return ONLY:
     {{
+    "job_title": "Software Engineer",
     "required_skills": ["skill1", "skill2"],
     "nice_to_have_skills": [],
     "seniority_level": "mid",
@@ -114,6 +116,7 @@ async def extract_jd_requirements(
 
     Return ONLY valid JSON with these exact keys. Use empty arrays if unsure:
     {{
+    "job_title": "",
     "required_skills": [],
     "nice_to_have_skills": [],
     "seniority_level": "mid",

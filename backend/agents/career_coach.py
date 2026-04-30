@@ -86,6 +86,7 @@ Output ONLY the JSON below. No markdown fences, no prose, no explanation.
 
 {
   "job_id": "{job_id}",
+  "job_title": "Software Engineer",
   "overall_score": <int 0–100>,
   "confidence": "low|medium|high",
   "dimension_scores": {

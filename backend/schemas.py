@@ -31,6 +31,7 @@ class CandidateProfile(BaseModel):
 
 class JDRequirements(BaseModel):
     """Structured extraction from job description."""
+    job_title: str = ""
     required_skills: list[str]
     nice_to_have_skills: list[str] = Field(default_factory=list)
     seniority_level: str = ""
@@ -77,7 +78,7 @@ class LearningPlanItem(BaseModel):
     skill: str
     priority_rank: int = Field(ge=1)
     estimated_match_gain_pct: int = Field(ge=0, le=100)
-    resources: list[ResourceItem] = Field(min_length=1, max_length=5)
+    resources: list[ResourceItem] = Field(default_factory=list)
     rationale: str = Field(min_length=5)
 
 
@@ -110,6 +111,7 @@ class AgentOutputForLLM(BaseModel):
     then parses the final_text from the event stream and adds agent_trace.
     """
     job_id: str
+    job_title: str = ""
     overall_score: int = Field(ge=0, le=100)
     confidence: Literal["low", "medium", "high"]
     dimension_scores: DimensionScores = Field(default_factory=DimensionScores)
@@ -122,6 +124,7 @@ class AgentOutputForLLM(BaseModel):
 class AgentOutput(BaseModel):
     """Final structured output. Stored in match_jobs.result JSONB."""
     job_id: str = Field(default_factory=lambda: str(uuid4()))
+    job_title: str = ""
     overall_score: int = Field(ge=0, le=100)
     confidence: Literal["low", "medium", "high"]
     dimension_scores: DimensionScores = Field(default_factory=DimensionScores)
