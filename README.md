@@ -400,3 +400,11 @@ Key logged events:
 Approximately **12 hours** over 3 days:
 - 3 hours — reading assignment spec, researching Google ADK, vLLM, llguidance
 - 9 hours — coding and debugging the agent, tools, worker, API, and integration test
+
+## AI Tools Used
+
+- **OpenCode** — Primary coding agent for architecture, implementation, and debugging
+- **PI Coding Agent** — Assisted with code generation and refactoring
+- **Antigravity** — Additional code assistance
+- **Google ADK Python Docs MCP** — For agent development kit integration
+- **Claude** — Used via chat for prompt engineering and design decisions
