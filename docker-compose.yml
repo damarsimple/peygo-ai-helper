@@ -1,0 +1,107 @@
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: pelgo
+      POSTGRES_USER: pelgo
+      POSTGRES_PASSWORD: pelgo
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/00-init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pelgo"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    command: >
+      sh -c "
+        python -m backend.db.seed &&
+        uvicorn backend.api.main:app --host 0.0.0.0 --port 8000
+      "
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://pelgo:pelgo@postgres:5432/pelgo
+      ADK_DATABASE_URL: postgresql+asyncpg://pelgo:pelgo@postgres:5432/pelgo_adk
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      MODEL_NAME: ${MODEL_NAME:-gpt-3.5-turbo}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./cache:/tmp/pelgo_cache
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    build: .
+    command: >
+      sh -c "
+        python -m backend.worker.run
+      "
+    environment:
+      DATABASE_URL: postgresql://pelgo:pelgo@postgres:5432/pelgo
+      ADK_DATABASE_URL: postgresql+asyncpg://pelgo:pelgo@postgres:5432/pelgo_adk
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      MODEL_NAME: ${MODEL_NAME:-gpt-3.5-turbo}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+      WORKER_ID: worker-1
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - ./cache:/tmp/pelgo_cache
+
+  worker2:
+    build: .
+    command: >
+      sh -c "
+        python -m backend.worker.run
+      "
+    environment:
+      DATABASE_URL: postgresql://pelgo:pelgo@postgres:5432/pelgo
+      ADK_DATABASE_URL: postgresql+asyncpg://pelgo:pelgo@postgres:5432/pelgo_adk
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      MODEL_NAME: ${MODEL_NAME:-gpt-3.5-turbo}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+      WORKER_ID: worker-2
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - ./cache:/tmp/pelgo_cache
+
+  # ADK Web UI — dev only (chat interface to interact with the agent)
+  adk-web:
+    build: .
+    command: adk web agents --port 8765 --host 0.0.0.0 --session_service_uri "postgresql+asyncpg://pelgo:pelgo@postgres:5432/pelgo_adk"
+    ports:
+      - "8765:8765"
+    environment:
+      DATABASE_URL: postgresql://pelgo:pelgo@postgres:5432/pelgo
+      ADK_DATABASE_URL: postgresql+asyncpg://pelgo:pelgo@postgres:5432/pelgo_adk
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      MODEL_NAME: ${MODEL_NAME:-gpt-3.5-turbo}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./cache:/tmp/pelgo_cache
+
+volumes:
+  pgdata:

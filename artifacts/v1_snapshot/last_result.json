@@ -1,0 +1,67 @@
+{
+    "job_id": "c51c8bfd-d3bd-4df8-8e78-5f9040066e04",
+    "candidate_id": "147de21e-e43a-4cf2-877e-eaf47597ef28",
+    "status": "completed",
+    "result": {
+        "job_id": "c51c8bfd-d3bd-4df8-8e78-5f9040066e04",
+        "reasoning": "Candidate scored 36 with low confidence. Agent used fallback reconstruction \u2014 results may be conservative. Score reduced by 10 points due to low-confidence assessment.",
+        "confidence": "low",
+        "gap_skills": [],
+        "agent_trace": {
+            "tool_calls": [
+                {
+                    "tool": "extract_jd_requirements",
+                    "status": "success",
+                    "latency_ms": 0
+                },
+                {
+                    "tool": "score_candidate_against_requirements",
+                    "status": "success",
+                    "latency_ms": 0
+                }
+            ],
+            "total_llm_calls": 5,
+            "fallbacks_triggered": 0
+        },
+        "learning_plan": [
+            {
+                "skill": "General Skill",
+                "rationale": "General Skill is important for career growth.",
+                "resources": [
+                    {
+                        "url": "https://www.google.com/search?q=learn+General+Skill",
+                        "type": "doc",
+                        "title": "Learn General Skill",
+                        "estimated_hours": 15,
+                        "relevance_score": 0.8
+                    }
+                ],
+                "priority_rank": 1,
+                "estimated_match_gain_pct": 10
+            }
+        ],
+        "overall_score": 26,
+        "matched_skills": [],
+        "dimension_scores": {
+            "skills": 0,
+            "experience": 66,
+            "seniority_fit": 70
+        }
+    },
+    "agent_trace": {
+        "tool_calls": [
+            {
+                "tool": "extract_jd_requirements",
+                "status": "success",
+                "latency_ms": 0
+            },
+            {
+                "tool": "score_candidate_against_requirements",
+                "status": "success",
+                "latency_ms": 0
+            }
+        ],
+        "total_llm_calls": 5,
+        "fallbacks_triggered": 0
+    }
+}

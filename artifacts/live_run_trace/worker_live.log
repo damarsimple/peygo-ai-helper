@@ -1,0 +1,171 @@
+worker-1  | /usr/local/lib/python3.11/site-packages/authlib/_joserfc_helpers.py:8: AuthlibDeprecationWarning: authlib.jose module is deprecated, please use joserfc instead.
+worker-1  | It will be compatible before version 2.0.0.
+worker-1  |   from authlib.jose import ECKey
+worker-1  | /usr/local/lib/python3.11/site-packages/google/adk/features/_feature_decorator.py:72: UserWarning: [EXPERIMENTAL] feature FeatureName.PLUGGABLE_AUTH is enabled.
+worker-1  |   check_feature_enabled()
+worker-1  | {"worker_id": "worker-1", "db_url": "postgresql://***@postgres:5432/pelgo", "event": "worker_started", "level": "info", "logger": "__main__", "timestamp": "2026-04-30T00:18:58.241072Z"}
+worker2-1  | /usr/local/lib/python3.11/site-packages/authlib/_joserfc_helpers.py:8: AuthlibDeprecationWarning: authlib.jose module is deprecated, please use joserfc instead.
+worker2-1  | It will be compatible before version 2.0.0.
+worker2-1  |   from authlib.jose import ECKey
+worker2-1  | /usr/local/lib/python3.11/site-packages/google/adk/features/_feature_decorator.py:72: UserWarning: [EXPERIMENTAL] feature FeatureName.PLUGGABLE_AUTH is enabled.
+worker2-1  |   check_feature_enabled()
+worker2-1  | {"worker_id": "worker-2", "db_url": "postgresql://***@postgres:5432/pelgo", "event": "worker_started", "level": "info", "logger": "__main__", "timestamp": "2026-04-30T00:18:58.238769Z"}
+worker2-1  | {"worker_id": "worker-2", "job_id": "UUID('71f12175-7cb7-4614-b09a-2e7b6fe9859d')", "candidate_id": "UUID('147de21e-e43a-4cf2-877e-eaf47597ef28')", "attempt": 1, "status": "processing", "event": "job_claimed", "level": "info", "logger": "__main__", "timestamp": "2026-04-30T00:20:32.358294Z"}
+worker2-1  | {"job_id": "71f12175-7cb7-4614-b09a-2e7b6fe9859d", "candidate_id": "147de21e-e43a-4cf2-877e-eaf47597ef28", "event": "job_runner_start", "level": "info", "logger": "backend.worker.job_runner", "timestamp": "2026-04-30T00:20:32.359085Z"}
+worker2-1  | {"job_id": "71f12175-7cb7-4614-b09a-2e7b6fe9859d", "candidate_skills": ["Python", "SQL"], "event": "agent_started", "level": "info", "logger": "backend.worker.callbacks", "timestamp": "2026-04-30T00:20:32.422519Z"}
+worker2-1  | {"job_id": "71f12175-7cb7-4614-b09a-2e7b6fe9859d", "candidate_skills": ["Python", "SQL"], "event": "agent_started", "level": "info", "logger": "backend.worker.callbacks", "timestamp": "2026-04-30T00:20:32.425064Z"}
+worker2-1  | [92m00:20:33 - LiteLLM:INFO[0m: utils.py:4011 - 
+worker2-1  | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker2-1  | 
+worker2-1  | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker2-1  | {"tool": "extract_jd_requirements", "latency_ms": 0, "job_id": "71f12175-7cb7-4614-b09a-2e7b6fe9859d", "event": "tool_call_completed", "level": "info", "logger": "backend.worker.callbacks", "timestamp": "2026-04-30T00:20:35.648786Z"}
+worker2-1  | [92m00:20:35 - LiteLLM:INFO[0m: utils.py:4011 - 
+worker2-1  | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker2-1  | 
+worker2-1  | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker2-1  | {"overall_score": 34, "confidence": "low", "required_match_ratio": 0.25, "nice_to_have_match_ratio": 0, "seniority_fit": 0.4, "jd_completeness": 0.6, "gap_count": 3, "event": "score_computed", "level": "info", "logger": "backend.tools.scorer", "timestamp": "2026-04-30T00:20:36.941736Z"}
+worker2-1  | {"tool": "score_candidate_against_requirements", "latency_ms": 0, "job_id": "71f12175-7cb7-4614-b09a-2e7b6fe9859d", "event": "tool_call_completed", "level": "info", "logger": "backend.worker.callbacks", "timestamp": "2026-04-30T00:20:36.941812Z"}
+worker2-1  | [92m00:20:36 - LiteLLM:INFO[0m: utils.py:4011 - 
+worker2-1  | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker2-1  | 
+worker2-1  | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker2-1  | /app/backend/tools/researcher.py:44: RuntimeWarning: This package (`duckduckgo_search`) has been renamed to `ddgs`! Use `pip install ddgs` instead.
+worker2-1  |   with DDGS() as d:
+worker2-1  | response: https://www.bing.com/search?q=learn+Django+mid+programming+course+tutorial 200
+worker2-1  | {"skill": "Django", "results_found": 3, "event": "research_ddg_success", "level": "info", "logger": "backend.tools.researcher", "timestamp": "2026-04-30T00:20:42.264785Z"}
+worker2-1  | {"skill": "Django", "resource_count": 3, "event": "research_complete", "level": "info", "logger": "backend.tools.researcher", "timestamp": "2026-04-30T00:20:42.265169Z"}
+worker2-1  | {"tool": "research_skill_resources", "latency_ms": 251, "job_id": "71f12175-7cb7-4614-b09a-2e7b6fe9859d", "event": "tool_call_completed", "level": "info", "logger": "backend.worker.callbacks", "timestamp": "2026-04-30T00:20:42.265253Z"}
+worker2-1  | /app/backend/tools/researcher.py:44: RuntimeWarning: This package (`duckduckgo_search`) has been renamed to `ddgs`! Use `pip install ddgs` instead.
+worker2-1  |   with DDGS() as d:
+worker2-1  | response: https://www.bing.com/search?q=learn+PostgreSQL+mid+programming+course+tutorial 200
+worker2-1  | {"skill": "PostgreSQL", "results_found": 0, "event": "research_ddg_success", "level": "info", "logger": "backend.tools.researcher", "timestamp": "2026-04-30T00:20:42.411129Z"}
+worker2-1  | {"skill": "PostgreSQL", "event": "research_llm_fallback", "level": "info", "logger": "backend.tools.researcher", "timestamp": "2026-04-30T00:20:42.411231Z"}
+worker2-1  | {"skill": "PostgreSQL", "resource_count": 3, "event": "research_complete", "level": "info", "logger": "backend.tools.researcher", "timestamp": "2026-04-30T00:21:07.959607Z"}
+worker2-1  | {"tool": "research_skill_resources", "latency_ms": 25945, "job_id": "71f12175-7cb7-4614-b09a-2e7b6fe9859d", "event": "tool_call_completed", "level": "info", "logger": "backend.worker.callbacks", "timestamp": "2026-04-30T00:21:07.959763Z"}
+worker2-1  | 
+worker2-1  | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker2-1  | [92m00:21:07 - LiteLLM:INFO[0m: utils.py:4011 - 
+worker2-1  | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker2-1  | {"gap_count": 3, "ranked_count": 3, "top_skill": "Django", "event": "skill_gaps_prioritised", "level": "info", "logger": "backend.tools.prioritizer", "timestamp": "2026-04-30T00:21:29.360967Z"}
+worker2-1  | {"tool": "prioritise_skill_gaps", "latency_ms": 19644, "job_id": "71f12175-7cb7-4614-b09a-2e7b6fe9859d", "event": "tool_call_completed", "level": "info", "logger": "backend.worker.callbacks", "timestamp": "2026-04-30T00:21:29.361114Z"}
+worker2-1  | [92m00:21:29 - LiteLLM:INFO[0m: utils.py:4011 - 
+worker2-1  | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker2-1  | 
+worker2-1  | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker2-1  | [92m00:21:43 - LiteLLM:INFO[0m: utils.py:4011 - 
+worker2-1  | 
+worker2-1  | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker2-1  | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker2-1  | /usr/local/lib/python3.11/site-packages/aiohttp/client.py:482: ResourceWarning: unclosed <socket.socket fd=23, family=2, type=1, proto=6, laddr=('172.18.0.5', 41736), raddr=('192.168.1.205', 6006)>
+worker2-1  |   return _RequestContextManager(self._request(method, url, **kwargs))
+worker2-1  | ResourceWarning: Enable tracemalloc to get the object allocation traceback
+worker2-1  | /usr/local/lib/python3.11/asyncio/selector_events.py:868: ResourceWarning: unclosed transport <_SelectorSocketTransport fd=23 read=idle write=<idle, bufsize=0>>
+worker2-1  |   _warn(f"unclosed transport {self!r}", ResourceWarning, source=self)
+worker2-1  | ResourceWarning: Enable tracemalloc to get the object allocation traceback
+worker2-1  | {"job_id": "71f12175-7cb7-4614-b09a-2e7b6fe9859d", "error": "1 validation error for AgentOutputForLLM\n  Invalid JSON: expected value at line 3 column 1 [type=json_invalid, input_value='\\n\\n```json\\n{\\n  \"job_i...s.\"\\n    }\\n  ]\\n}\\n```', input_type=str]\n    For", "event": "agent_pipeline_exception", "level": "warning", "logger": "backend.worker.job_runner", "timestamp": "2026-04-30T00:22:11.109479Z"}
+worker2-1  | {"job_id": "71f12175-7cb7-4614-b09a-2e7b6fe9859d", "score": 24, "confidence": "low", "fallback": true, "event": "job_runner_complete_path2", "level": "info", "logger": "backend.worker.job_runner", "timestamp": "2026-04-30T00:22:11.114234Z"}
+worker2-1  | {"worker_id": "worker-2", "job_id": "UUID('71f12175-7cb7-4614-b09a-2e7b6fe9859d')", "status": "completed", "score": 24, "confidence": "low", "event": "job_completed", "level": "info", "logger": "__main__", "timestamp": "2026-04-30T00:22:11.123635Z"}
+worker2-1  | {"worker_id": "worker-2", "job_id": "UUID('c51c8bfd-d3bd-4df8-8e78-5f9040066e04')", "candidate_id": "UUID('147de21e-e43a-4cf2-877e-eaf47597ef28')", "attempt": 1, "status": "processing", "event": "job_claimed", "level": "info", "logger": "__main__", "timestamp": "2026-04-30T00:22:11.633614Z"}
+worker2-1  | {"job_id": "c51c8bfd-d3bd-4df8-8e78-5f9040066e04", "candidate_id": "147de21e-e43a-4cf2-877e-eaf47597ef28", "event": "job_runner_start", "level": "info", "logger": "backend.worker.job_runner", "timestamp": "2026-04-30T00:22:11.634139Z"}
+worker2-1  | {"job_id": "c51c8bfd-d3bd-4df8-8e78-5f9040066e04", "candidate_skills": ["Python", "SQL"], "event": "agent_started", "level": "info", "logger": "backend.worker.callbacks", "timestamp": "2026-04-30T00:22:11.646562Z"}
+worker2-1  | {"job_id": "c51c8bfd-d3bd-4df8-8e78-5f9040066e04", "candidate_skills": ["Python", "SQL"], "event": "agent_started", "level": "info", "logger": "backend.worker.callbacks", "timestamp": "2026-04-30T00:22:11.648901Z"}
+worker2-1  | [92m00:22:11 - LiteLLM:INFO[0m: utils.py:4011 - 
+worker2-1  | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker2-1  | 
+worker2-1  | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker2-1  | {"tool": "extract_jd_requirements", "latency_ms": 0, "job_id": "c51c8bfd-d3bd-4df8-8e78-5f9040066e04", "event": "tool_call_completed", "level": "info", "logger": "backend.worker.callbacks", "timestamp": "2026-04-30T00:22:14.075387Z"}
+worker2-1  | [92m00:22:14 - LiteLLM:INFO[0m: utils.py:4011 - 
+worker2-1  | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker2-1  | 
+worker2-1  | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker2-1  | /usr/local/lib/python3.11/asyncio/selector_events.py:868: ResourceWarning: unclosed transport <_SelectorSocketTransport fd=22 read=idle write=<idle, bufsize=0>>
+worker2-1  |   _warn(f"unclosed transport {self!r}", ResourceWarning, source=self)
+worker2-1  | ResourceWarning: Enable tracemalloc to get the object allocation traceback
+worker2-1  | {"overall_score": 36, "confidence": "low", "required_match_ratio": 0.0, "nice_to_have_match_ratio": 0, "seniority_fit": 0.7, "jd_completeness": 0.4, "gap_count": 0, "event": "score_computed", "level": "info", "logger": "backend.tools.scorer", "timestamp": "2026-04-30T00:22:16.260781Z"}
+worker2-1  | {"tool": "score_candidate_against_requirements", "latency_ms": 0, "job_id": "c51c8bfd-d3bd-4df8-8e78-5f9040066e04", "event": "tool_call_completed", "level": "info", "logger": "backend.worker.callbacks", "timestamp": "2026-04-30T00:22:16.260854Z"}
+worker2-1  | [92m00:22:16 - LiteLLM:INFO[0m: utils.py:4011 - 
+worker2-1  | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker2-1  | 
+worker2-1  | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker2-1  | [92m00:22:31 - LiteLLM:INFO[0m: utils.py:4011 - 
+worker2-1  | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker2-1  | 
+worker2-1  | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker2-1  | {"job_id": "c51c8bfd-d3bd-4df8-8e78-5f9040066e04", "error": "1 validation error for AgentOutputForLLM\n  Invalid JSON: expected value at line 3 column 1 [type=json_invalid, input_value='\\n\\n```json\\n{\\n  \"job_i...rning_plan\": []\\n}\\n```', input_type=str]\n    For", "event": "agent_pipeline_exception", "level": "warning", "logger": "backend.worker.job_runner", "timestamp": "2026-04-30T00:22:45.263793Z"}
+worker2-1  | {"job_id": "c51c8bfd-d3bd-4df8-8e78-5f9040066e04", "score": 26, "confidence": "low", "fallback": true, "event": "job_runner_complete_path2", "level": "info", "logger": "backend.worker.job_runner", "timestamp": "2026-04-30T00:22:45.267239Z"}
+worker2-1  | {"worker_id": "worker-2", "job_id": "UUID('c51c8bfd-d3bd-4df8-8e78-5f9040066e04')", "status": "completed", "score": 26, "confidence": "low", "event": "job_completed", "level": "info", "logger": "__main__", "timestamp": "2026-04-30T00:22:45.268409Z"}
+worker-1   | {"worker_id": "worker-1", "job_id": "UUID('671f8089-94a6-4f49-997c-381fe90d3eca')", "candidate_id": "UUID('41978e5c-d568-4fd3-80e1-314e5d8a6d71')", "attempt": 1, "status": "processing", "event": "job_claimed", "level": "info", "logger": "__main__", "timestamp": "2026-04-30T00:24:10.617829Z"}
+worker-1   | {"job_id": "671f8089-94a6-4f49-997c-381fe90d3eca", "candidate_id": "41978e5c-d568-4fd3-80e1-314e5d8a6d71", "event": "job_runner_start", "level": "info", "logger": "backend.worker.job_runner", "timestamp": "2026-04-30T00:24:10.618534Z"}
+worker-1   | {"job_id": "671f8089-94a6-4f49-997c-381fe90d3eca", "candidate_skills": ["Python", "Docker", "SQL"], "event": "agent_started", "level": "info", "logger": "backend.worker.callbacks", "timestamp": "2026-04-30T00:24:10.658893Z"}
+worker-1   | {"job_id": "671f8089-94a6-4f49-997c-381fe90d3eca", "candidate_skills": ["Python", "Docker", "SQL"], "event": "agent_started", "level": "info", "logger": "backend.worker.callbacks", "timestamp": "2026-04-30T00:24:10.661631Z"}
+worker-1   | [92m00:24:11 - LiteLLM:INFO[0m: utils.py:4011 - 
+worker-1   | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker-1   | 
+worker-1   | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker-1   | {"cache_key": "jd:text:559d22286307f8c238e804bad372b7a03d2ec3918b006acc41ad37e1cba05353", "attempt": 1, "required_skills": 4, "event": "jd_extract_success", "level": "info", "logger": "backend.tools.jd_extractor", "timestamp": "2026-04-30T00:24:28.637428Z"}
+worker-1   | {"tool": "extract_jd_requirements", "latency_ms": 14595, "job_id": "671f8089-94a6-4f49-997c-381fe90d3eca", "event": "tool_call_completed", "level": "info", "logger": "backend.worker.callbacks", "timestamp": "2026-04-30T00:24:28.637568Z"}
+worker-1   | 
+worker-1   | [92m00:24:28 - LiteLLM:INFO[0m: utils.py:4011 - 
+worker-1   | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker-1   | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker-1   | {"overall_score": 49, "confidence": "low", "required_match_ratio": 0.0, "nice_to_have_match_ratio": 1.0, "seniority_fit": 0.7, "jd_completeness": 0.8, "gap_count": 4, "event": "score_computed", "level": "info", "logger": "backend.tools.scorer", "timestamp": "2026-04-30T00:24:30.837666Z"}
+worker-1   | {"tool": "score_candidate_against_requirements", "latency_ms": 0, "job_id": "671f8089-94a6-4f49-997c-381fe90d3eca", "event": "tool_call_completed", "level": "info", "logger": "backend.worker.callbacks", "timestamp": "2026-04-30T00:24:30.837741Z"}
+worker-1   | 
+worker-1   | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker-1   | [92m00:24:30 - LiteLLM:INFO[0m: utils.py:4011 - 
+worker-1   | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker-1   | /app/backend/tools/researcher.py:44: RuntimeWarning: This package (`duckduckgo_search`) has been renamed to `ddgs`! Use `pip install ddgs` instead.
+worker-1   |   with DDGS() as d:
+worker-1   | response: https://www.bing.com/search?q=learn+Kubernetes+mid+programming+course+tutorial 200
+worker-1   | {"skill": "Kubernetes", "results_found": 0, "event": "research_ddg_success", "level": "info", "logger": "backend.tools.researcher", "timestamp": "2026-04-30T00:24:37.585484Z"}
+worker-1   | {"skill": "Kubernetes", "event": "research_llm_fallback", "level": "info", "logger": "backend.tools.researcher", "timestamp": "2026-04-30T00:24:37.585586Z"}
+worker-1   | /app/backend/tools/researcher.py:44: RuntimeWarning: This package (`duckduckgo_search`) has been renamed to `ddgs`! Use `pip install ddgs` instead.
+worker-1   |   with DDGS() as d:
+worker-1   | response: https://www.bing.com/search?q=learn+Terraform+mid+programming+course+tutorial 200
+worker-1   | {"skill": "Terraform", "results_found": 0, "event": "research_ddg_success", "level": "info", "logger": "backend.tools.researcher", "timestamp": "2026-04-30T00:24:37.742596Z"}
+worker-1   | {"skill": "Terraform", "event": "research_llm_fallback", "level": "info", "logger": "backend.tools.researcher", "timestamp": "2026-04-30T00:24:37.742702Z"}
+worker-1   | {"skill": "Kubernetes", "resource_count": 3, "event": "research_complete", "level": "info", "logger": "backend.tools.researcher", "timestamp": "2026-04-30T00:24:57.938233Z"}
+worker-1   | {"tool": "research_skill_resources", "latency_ms": 21015, "job_id": "671f8089-94a6-4f49-997c-381fe90d3eca", "event": "tool_call_completed", "level": "info", "logger": "backend.worker.callbacks", "timestamp": "2026-04-30T00:24:57.938347Z"}
+worker-1   | {"skill": "Terraform", "resource_count": 3, "event": "research_complete", "level": "info", "logger": "backend.tools.researcher", "timestamp": "2026-04-30T00:25:05.354938Z"}
+worker-1   | {"tool": "research_skill_resources", "latency_ms": 28432, "job_id": "671f8089-94a6-4f49-997c-381fe90d3eca", "event": "tool_call_completed", "level": "info", "logger": "backend.worker.callbacks", "timestamp": "2026-04-30T00:25:05.355065Z"}
+worker-1   | [92m00:25:05 - LiteLLM:INFO[0m: utils.py:4011 - 
+worker-1   | 
+worker-1   | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker-1   | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker-1   | {"gap_count": 4, "ranked_count": 4, "top_skill": "AWS", "event": "skill_gaps_prioritised", "level": "info", "logger": "backend.tools.prioritizer", "timestamp": "2026-04-30T00:25:26.864743Z"}
+worker-1   | {"tool": "prioritise_skill_gaps", "latency_ms": 19908, "job_id": "671f8089-94a6-4f49-997c-381fe90d3eca", "event": "tool_call_completed", "level": "info", "logger": "backend.worker.callbacks", "timestamp": "2026-04-30T00:25:26.864863Z"}
+worker-1   | [92m00:25:26 - LiteLLM:INFO[0m: utils.py:4011 - 
+worker-1   | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker-1   | 
+worker-1   | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker-1   | /usr/local/lib/python3.11/site-packages/sqlalchemy/orm/persistence.py:781: ResourceWarning: unclosed <socket.socket fd=25, family=2, type=1, proto=6, laddr=('172.18.0.6', 58696), raddr=('192.168.1.205', 6006)>
+worker-1   |   ) in groupby(
+worker-1   | ResourceWarning: Enable tracemalloc to get the object allocation traceback
+worker-1   | /usr/local/lib/python3.11/asyncio/selector_events.py:868: ResourceWarning: unclosed transport <_SelectorSocketTransport fd=25 read=idle write=<idle, bufsize=0>>
+worker-1   |   _warn(f"unclosed transport {self!r}", ResourceWarning, source=self)
+worker-1   | ResourceWarning: Enable tracemalloc to get the object allocation traceback
+worker-1   | /usr/local/lib/python3.11/asyncio/selector_events.py:868: ResourceWarning: unclosed transport <_SelectorSocketTransport fd=14 read=idle write=<idle, bufsize=0>>
+worker-1   |   _warn(f"unclosed transport {self!r}", ResourceWarning, source=self)
+worker-1   | ResourceWarning: Enable tracemalloc to get the object allocation traceback
+worker-1   | /usr/local/lib/python3.11/site-packages/sqlalchemy/sql/compiler.py:1895: ResourceWarning: unclosed <socket.socket fd=23, family=2, type=1, proto=6, laddr=('172.18.0.6', 53926), raddr=('192.168.1.205', 6006)>
+worker-1   |   resolved_extracted = {
+worker-1   | ResourceWarning: Enable tracemalloc to get the object allocation traceback
+worker-1   | /usr/local/lib/python3.11/asyncio/selector_events.py:868: ResourceWarning: unclosed transport <_SelectorSocketTransport fd=23 read=idle write=<idle, bufsize=0>>
+worker-1   |   _warn(f"unclosed transport {self!r}", ResourceWarning, source=self)
+worker-1   | ResourceWarning: Enable tracemalloc to get the object allocation traceback
+worker-1   | /usr/local/lib/python3.11/asyncio/selector_events.py:868: ResourceWarning: unclosed transport <_SelectorSocketTransport fd=24 read=idle write=<idle, bufsize=0>>
+worker-1   |   _warn(f"unclosed transport {self!r}", ResourceWarning, source=self)
+worker-1   | ResourceWarning: Enable tracemalloc to get the object allocation traceback
+worker-1   | {"tool": "research_skill_resources", "latency_ms": 57707, "job_id": "671f8089-94a6-4f49-997c-381fe90d3eca", "event": "tool_call_completed", "level": "info", "logger": "backend.worker.callbacks", "timestamp": "2026-04-30T00:25:34.630048Z"}
+worker-1   | [92m00:25:34 - LiteLLM:INFO[0m: utils.py:4011 - 
+worker-1   | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker-1   | 
+worker-1   | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker-1   | [92m00:25:43 - LiteLLM:INFO[0m: utils.py:4011 - 
+worker-1   | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker-1   | 
+worker-1   | LiteLLM completion() model= sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP; provider = openai
+worker-1   | {"job_id": "671f8089-94a6-4f49-997c-381fe90d3eca", "error": "1 validation error for AgentOutputForLLM\nlearning_plan.3.resources\n  List should have at least 1 item after validation, not 0 [type=too_short, input_value=[], input_type=list]\n    For further informat", "event": "agent_pipeline_exception", "level": "warning", "logger": "backend.worker.job_runner", "timestamp": "2026-04-30T00:26:22.613148Z"}
+worker-1   | {"job_id": "671f8089-94a6-4f49-997c-381fe90d3eca", "score": 39, "confidence": "low", "fallback": true, "event": "job_runner_complete_path2", "level": "info", "logger": "backend.worker.job_runner", "timestamp": "2026-04-30T00:26:22.618451Z"}
+worker-1   | {"worker_id": "worker-1", "job_id": "UUID('671f8089-94a6-4f49-997c-381fe90d3eca')", "status": "completed", "score": 39, "confidence": "low", "event": "job_completed", "level": "info", "logger": "__main__", "timestamp": "2026-04-30T00:26:22.621951Z"}
+

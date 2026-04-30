@@ -1,0 +1,114 @@
+{
+  "id": "bd81245e-d35e-4491-9133-8ae746e6f02a",
+  "candidate_id": "d3fde677-7f81-47d6-8af7-b71a02c24dc9",
+  "jd_input": "\nSoftware Engineer - Web\nValve is looking for software engineers to join our web team. We build the systems that power Steam, including the store, community, and partner portals.\nRequirements:\n- Strong experience with JavaScript/TypeScript and modern frameworks (React, Vue, etc.)\n- Experience building large-scale web applications\n- Familiarity with backend systems (Node.js, Python, or similar)\n- Understanding of cloud infrastructure and service architecture\n",
+  "status": "completed",
+  "result": {
+    "job_id": "bd81245e-d35e-4491-9133-8ae746e6f02a",
+    "reasoning": "The candidate demonstrates a strong match with a score of 72/100, showing perfect alignment in seniority and a solid grasp of 7 out of 8 required technical skills, including JavaScript, TypeScript, React, and Python. The primary gap lies in Vue.js proficiency; addressing this specific skill would significantly enhance the candidate's suitability for the role.",
+    "confidence": "high",
+    "gap_skills": [
+      "Vue"
+    ],
+    "agent_trace": {
+      "tool_calls": [
+        {
+          "tool": "extract_jd_requirements",
+          "status": "success",
+          "latency_ms": 15156
+        },
+        {
+          "tool": "score_candidate_against_requirements",
+          "status": "success",
+          "latency_ms": 12466
+        },
+        {
+          "tool": "prioritise_skill_gaps",
+          "status": "success",
+          "latency_ms": 10102
+        },
+        {
+          "tool": "research_skill_resources",
+          "status": "success",
+          "latency_ms": 24998
+        }
+      ],
+      "total_llm_calls": 8,
+      "fallbacks_triggered": 0
+    },
+    "learning_plan": [
+      {
+        "skill": "Vue",
+        "rationale": "Vue is a highly in-demand frontend framework for mid-level positions, enabling developers to build scalable, component-based SPAs. Proficiency directly aligns with modern job requirements, significantly boosting ATS match rates and interview conversion for frontend or full-stack roles.",
+        "resources": [
+          {
+            "url": "https://www.udemy.com/course/vuejs-2-the-complete-guide/",
+            "type": "course",
+            "title": "Vue.js 3 - The Complete Guide (2024)",
+            "estimated_hours": 18,
+            "relevance_score": 0.95
+          },
+          {
+            "url": "https://www.pluralsight.com/courses/vue-3-advanced-patterns",
+            "type": "course",
+            "title": "Vue 3: Advanced Patterns",
+            "estimated_hours": 4,
+            "relevance_score": 0.92
+          },
+          {
+            "url": "https://vuejs.org/guide/",
+            "type": "doc",
+            "title": "Vue 3 Official Documentation: Guide",
+            "estimated_hours": 12,
+            "relevance_score": 0.98
+          }
+        ],
+        "priority_rank": 1,
+        "estimated_match_gain_pct": 25
+      }
+    ],
+    "overall_score": 72,
+    "matched_skills": [
+      "JavaScript",
+      "TypeScript",
+      "React",
+      "Node.js",
+      "Python",
+      "Cloud Infrastructure",
+      "Service Architecture"
+    ],
+    "dimension_scores": {
+      "skills": 70,
+      "experience": 66,
+      "seniority_fit": 100
+    }
+  },
+  "agent_trace": {
+    "tool_calls": [
+      {
+        "tool": "extract_jd_requirements",
+        "status": "success",
+        "latency_ms": 15156
+      },
+      {
+        "tool": "score_candidate_against_requirements",
+        "status": "success",
+        "latency_ms": 12466
+      },
+      {
+        "tool": "prioritise_skill_gaps",
+        "status": "success",
+        "latency_ms": 10102
+      },
+      {
+        "tool": "research_skill_resources",
+        "status": "success",
+        "latency_ms": 24998
+      }
+    ],
+    "total_llm_calls": 8,
+    "fallbacks_triggered": 0
+  },
+  "error_detail": null,
+  "attempt_count": 1
+}

@@ -1,0 +1,42 @@
+[project]
+name = "pelgo-assignment"
+version = "0.1.0"
+requires-python = ">=3.11"
+
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.34",
+    "pydantic>=2.10",
+    "httpx>=0.28",
+    "beautifulsoup4>=4.12",
+    "duckduckgo-search>=7.2",
+    "tavily-python>=0.7",
+    "diskcache>=5.6",
+    "asyncpg>=0.30",
+    "structlog>=25.4",
+    "google-adk>=1.31",
+    "litellm>=1.75.5",
+    "openai>=1.0",
+    "alembic>=1.14",
+    "sqlalchemy>=2.0",
+    "pytest>=8.3",
+    "pytest-asyncio>=0.25",
+    "pdfplumber>=0.11",
+    "python-multipart>=0.0.18",
+    "psycopg2-binary>=2.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "httpx>=0.28",
+    "pytest-asyncio>=0.25",
+    "ruff>=0.8",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["backend"]

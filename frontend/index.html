@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pelgo Career Intelligence</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0f1117; --surface: #1a1d2e; --surface2: #232740;
+            --border: #2e3352; --text: #e2e8f0; --text2: #94a3b8;
+            --accent: #6366f1; --accent2: #818cf8; --accent-glow: rgba(99,102,241,.15);
+            --green: #34d399; --yellow: #fbbf24; --red: #f87171;
+            --radius: 12px;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var(--text);
+               min-height:100vh; }
+        .container { max-width:920px; margin:0 auto; padding:2rem 1.5rem; }
+
+        /* Header */
+        .header { text-align:center; margin-bottom:2.5rem; }
+        .header h1 { font-size:2rem; font-weight:700;
+            background:linear-gradient(135deg,var(--accent2),var(--green));
+            -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+        .header p { color:var(--text2); margin-top:.5rem; font-size:.95rem; }
+
+        /* Cards */
+        .card { background:var(--surface); border:1px solid var(--border);
+                border-radius:var(--radius); padding:1.5rem; margin-bottom:1.5rem;
+                transition:border-color .2s; }
+        .card:hover { border-color:var(--accent); }
+        .card h2 { font-size:1.1rem; font-weight:600; margin-bottom:1rem;
+                   display:flex; align-items:center; gap:.5rem; }
+        .card h2 .icon { font-size:1.2rem; }
+
+        /* Form */
+        label { display:block; font-size:.8rem; font-weight:500; color:var(--text2);
+                margin-bottom:.3rem; margin-top:.75rem; text-transform:uppercase; letter-spacing:.5px; }
+        input, textarea, select { width:100%; padding:.6rem .8rem; background:var(--surface2);
+            border:1px solid var(--border); border-radius:8px; color:var(--text);
+            font-family:inherit; font-size:.9rem; outline:none; transition:border-color .2s; }
+        input:focus, textarea:focus, select:focus { border-color:var(--accent); }
+        select option { background:var(--surface2); }
+        .row { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+
+        /* Buttons */
+        .btn { display:inline-flex; align-items:center; gap:.4rem; padding:.6rem 1.4rem;
+               border:none; border-radius:8px; font-family:inherit; font-size:.85rem;
+               font-weight:600; cursor:pointer; transition:all .2s; margin-top:.75rem; }
+        .btn-primary { background:var(--accent); color:#fff; }
+        .btn-primary:hover { background:var(--accent2); box-shadow:0 0 20px var(--accent-glow); }
+        .btn-danger { background:rgba(248,113,113,.15); color:var(--red); border:1px solid rgba(248,113,113,.3); }
+        .btn-danger:hover { background:rgba(248,113,113,.25); }
+        .btn-secondary { background:var(--surface2); color:var(--text2); border:1px solid var(--border); }
+        .btn-secondary:hover { border-color:var(--accent); color:var(--text); }
+        .btn:disabled { opacity:.4; cursor:not-allowed; }
+
+        /* Status pills */
+        .pill { display:inline-block; padding:.2rem .7rem; border-radius:999px;
+                font-size:.75rem; font-weight:600; }
+        .pill-pending { background:rgba(251,191,36,.12); color:var(--yellow); }
+        .pill-processing { background:rgba(99,102,241,.12); color:var(--accent2);
+            animation:pulse 1.5s ease-in-out infinite; }
+        .pill-completed { background:rgba(52,211,153,.12); color:var(--green); }
+        .pill-failed { background:rgba(248,113,113,.12); color:var(--red); }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+        /* Result cards */
+        .job-card { background:var(--surface2); border:1px solid var(--border);
+                    border-radius:var(--radius); padding:1rem 1.25rem; margin-top:.75rem;
+                    transition:all .3s; }
+        .job-card.completed { border-color:rgba(52,211,153,.3); }
+        .job-card.failed { border-color:rgba(248,113,113,.3); }
+        .job-header { display:flex; justify-content:space-between; align-items:center; }
+        .job-id { font-family:monospace; font-size:.8rem; color:var(--text2); }
+
+        /* Score display */
+        .score-ring { display:inline-flex; align-items:center; justify-content:center;
+            width:56px; height:56px; border-radius:50%; font-size:1.1rem; font-weight:700;
+            border:3px solid var(--accent); position:relative; }
+        .score-bar { display:flex; gap:1.5rem; align-items:center; margin:.75rem 0; flex-wrap:wrap; }
+        .dim { font-size:.8rem; color:var(--text2); }
+        .dim span { color:var(--text); font-weight:600; }
+
+        /* Skills */
+        .skill-tag { display:inline-block; padding:.15rem .5rem; border-radius:6px;
+                     font-size:.75rem; margin:.2rem; }
+        .skill-matched { background:rgba(52,211,153,.12); color:var(--green); }
+        .skill-gap { background:rgba(248,113,113,.12); color:var(--red); }
+
+        /* Learning plan */
+        .lp-item { background:var(--surface); border-radius:8px; padding:.75rem 1rem;
+                   margin-top:.5rem; border-left:3px solid var(--accent); }
+        .lp-item h4 { font-size:.85rem; margin-bottom:.3rem; }
+        .lp-item .meta { font-size:.75rem; color:var(--text2); }
+        .lp-item a { color:var(--accent2); text-decoration:none; font-size:.8rem; }
+        .lp-item a:hover { text-decoration:underline; }
+
+        /* Trace */
+        .trace { background:var(--bg); border-radius:8px; padding:.75rem; margin-top:.5rem;
+                 font-family:monospace; font-size:.75rem; color:var(--text2); overflow-x:auto; }
+
+        /* Upload zone */
+        .upload-zone { border:2px dashed var(--border); border-radius:var(--radius);
+            padding:1.25rem; text-align:center; transition:border-color .2s; margin-top:.75rem; }
+        .upload-zone:hover { border-color:var(--accent); }
+        .upload-zone p { color:var(--text2); font-size:.85rem; margin-bottom:.5rem; }
+
+        /* Alert */
+        .alert { padding:.6rem 1rem; border-radius:8px; font-size:.85rem; margin-top:.75rem;
+                 display:none; }
+        .alert-success { display:block; background:rgba(52,211,153,.1); color:var(--green);
+            border:1px solid rgba(52,211,153,.2); }
+        .alert-error { display:block; background:rgba(248,113,113,.1); color:var(--red);
+            border:1px solid rgba(248,113,113,.2); }
+
+        /* Admin row */
+        .admin-row { display:flex; gap:.75rem; align-items:flex-end; }
+        .admin-row .field { flex:1; }
+        .admin-row .btn { margin-top:0; }
+
+        hr { border:none; border-top:1px solid var(--border); margin:0; }
+        .hidden { display:none !important; }
+        .section-label { font-size:.7rem; color:var(--text2); text-transform:uppercase;
+            letter-spacing:1px; margin-bottom:.5rem; }
+        details summary { cursor:pointer; font-size:.8rem; color:var(--text2); margin-top:.5rem; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>⚡ Pelgo Career Intelligence</h1>
+        <p>AI-powered candidate-job matching &amp; skill gap analysis</p>
+    </div>
+
+    <!-- Step 1: Profile Setup -->
+    <div class="card" id="candidateCard">
+        <h2><span class="icon">👤</span> Step 1: Set Up Candidate Profile</h2>
+        <p style="font-size:0.85rem; color:var(--text2); margin-bottom:1.5rem;">
+            You can either manually enter details below OR upload a resume PDF to automatically extract them.
+        </p>
+        
+        <div class="row">
+            <div><label>Name</label><input id="name" placeholder="Jane Doe"></div>
+            <div><label>Email</label><input id="email" placeholder="jane@example.com" type="email"></div>
+        </div>
+        <label>Skills (comma-separated)</label>
+        <input id="skills" placeholder="Python, SQL, Docker, AWS">
+        <div class="row">
+            <div><label>Years Experience</label><input id="experience" type="number" value="3"></div>
+            <div><label>Seniority</label>
+                <select id="seniority">
+                    <option value="junior">Junior</option>
+                    <option value="mid" selected>Mid</option>
+                    <option value="senior">Senior</option>
+                    <option value="lead">Lead</option>
+                </select>
+            </div>
+        </div>
+        <label>Domain</label>
+        <input id="domain" placeholder="data_engineering">
+        <button class="btn btn-primary" onclick="submitCandidate()">Register Candidate</button>
+
+        <div class="upload-zone">
+            <p>📄 Or upload a resume PDF</p>
+            <input type="file" id="pdfFile" accept=".pdf" style="display:none" onchange="handlePdfSelect(this)">
+            <span id="pdfFileName" style="font-size:.8rem;color:var(--text2)">No file selected</span><br>
+            <button class="btn btn-secondary" onclick="document.getElementById('pdfFile').click()" style="margin-right:.5rem">Choose PDF</button>
+            <button class="btn btn-primary" onclick="submitCandidatePdf()">Upload &amp; Register</button>
+        </div>
+
+        <div id="candidateResult" class="hidden alert"></div>
+    </div>
+
+    <!-- Step 2: JD Submission -->
+    <div class="card">
+        <h2 id="jdHeader"><span class="icon">📋</span> Step 2: Submit Job Descriptions</h2>
+        <div id="jdContainer">
+            <div class="jd-entry card" style="background:var(--surface2); padding:1rem; margin-bottom:1rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                    <label style="margin:0">Job Description #1</label>
+                </div>
+                <textarea class="jd-textarea" rows="6" placeholder="Paste JD text or URL here..."></textarea>
+            </div>
+        </div>
+        <div style="display:flex; gap:1rem; align-items:center;">
+            <button class="btn" onclick="addJdField()" id="addJdBtn" style="background:var(--surface2); border:1px solid var(--border);">
+                ➕ Add Another JD
+            </button>
+            <button id="submitBtn" class="btn btn-primary" onclick="submitMatches()" disabled>
+                🚀 Submit Match Requests
+            </button>
+        </div>
+    </div>
+
+    <!-- Results -->
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+            <h2 style="margin-bottom:0"><span class="icon">📊</span> Match Results</h2>
+            <div style="display:flex; align-items:center; gap:1.5rem;">
+                <div style="display:flex; align-items:center; gap:0.5rem; font-size:0.85rem; color:var(--text2);">
+                    <input type="checkbox" id="filterToggle" onchange="refreshJobs()" checked style="width:auto">
+                    <label for="filterToggle" style="margin:0; text-transform:none;">Show only my jobs</label>
+                </div>
+                <button class="btn" style="margin-top:0; padding:0.4rem 0.8rem;" onclick="refreshJobs()">🔄 Refresh</button>
+            </div>
+        </div>
+        <div id="jobResults"></div>
+    </div>
+
+    <!-- Admin -->
+    <div class="card">
+        <h2><span class="icon">🔧</span> Admin — Requeue Failed Job</h2>
+        <div class="admin-row">
+            <div class="field"><label>Job UUID</label><input id="requeueJobId" placeholder="paste job id here"></div>
+            <button class="btn btn-danger" onclick="requeueJob()">Requeue</button>
+        </div>
+        <div id="requeueResult" class="hidden alert"></div>
+    </div>
+</div>
+
+<script>
+let candidateId = null;
+const pollIntervals = {};
+
+async function submitCandidate() {
+    const btn = document.querySelector('#candidateCard .btn-primary');
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Registering...';
+
+    const resp = await fetch("/api/v1/candidate", {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+            name: document.getElementById('name').value,
+            email: document.getElementById('email').value,
+            skills: document.getElementById('skills').value.split(',').map(s=>s.trim()).filter(Boolean),
+            years_experience: parseInt(document.getElementById('experience').value),
+            seniority: document.getElementById('seniority').value,
+            domain: document.getElementById('domain').value,
+        })
+    });
+    const data = await resp.json();
+    const el = document.getElementById('candidateResult');
+    
+    btn.disabled = false;
+    btn.textContent = originalText;
+
+    if (resp.ok) {
+        candidateId = data.id;
+        el.className = 'alert alert-success';
+        el.textContent = `✓ Candidate registered: ${candidateId}`;
+        document.getElementById('submitBtn').disabled = false;
+        document.getElementById('jdHeader').scrollIntoView({ behavior: 'smooth' });
+        refreshJobs();
+    } else {
+        el.className = 'alert alert-error';
+        el.textContent = `✗ Error: ${JSON.stringify(data)}`;
+    }
+}
+
+function handlePdfSelect(input) {
+    document.getElementById('pdfFileName').textContent = input.files[0] ? input.files[0].name : 'No file selected';
+}
+
+async function submitCandidatePdf() {
+    const file = document.getElementById('pdfFile').files[0];
+    if (!file) { alert('Please select a PDF file'); return; }
+    
+    const btn = document.querySelector('.upload-zone button');
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Extracting Profile... (may take 20s)';
+
+    const fd = new FormData(); fd.append('file', file);
+    const resp = await fetch("/api/v1/candidate/pdf", { method:'POST', body:fd });
+    const data = await resp.json();
+    const el = document.getElementById('candidateResult');
+    
+    btn.disabled = false;
+    btn.textContent = originalText;
+
+    if (resp.ok) {
+        candidateId = data.id;
+        el.className = 'alert alert-success';
+        el.innerHTML = `<strong>✓ Resume Extracted Successfully!</strong><br><span style="font-size:0.8rem">Profile ID: ${candidateId} (Upserted)</span>`;
+        document.getElementById('submitBtn').disabled = false;
+        document.getElementById('jdHeader').scrollIntoView({ behavior: 'smooth' });
+        refreshJobs();
+    } else {
+        el.className = 'alert alert-error';
+        el.textContent = `✗ Error: ${JSON.stringify(data)}`;
+    }
+}
+
+function addJdField() {
+    const container = document.getElementById('jdContainer');
+    const count = container.querySelectorAll('.jd-entry').length;
+    if (count >= 10) { alert('Maximum 10 JDs allowed per batch'); return; }
+    
+    const div = document.createElement('div');
+    div.className = 'jd-entry card';
+    div.style.cssText = 'background:var(--surface2); padding:1rem; margin-bottom:1rem;';
+    div.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+            <label style="margin:0">Job Description #${count + 1}</label>
+            <button class="btn btn-danger" onclick="this.closest('.jd-entry').remove(); updateJdLabels();" style="padding:0.2rem 0.5rem; font-size:0.75rem; margin:0;">Remove</button>
+        </div>
+        <textarea class="jd-textarea" rows="6" placeholder="Paste JD text or URL here..."></textarea>
+    `;
+    container.appendChild(div);
+}
+
+function updateJdLabels() {
+    document.querySelectorAll('.jd-entry label').forEach((l, i) => {
+        l.textContent = `Job Description #${i + 1}`;
+    });
+}
+
+async function submitMatches() {
+    if (!candidateId) { alert('Register a candidate first!'); return; }
+    const jds = Array.from(document.querySelectorAll('.jd-textarea'))
+        .map(t => t.value.trim())
+        .filter(Boolean);
+    
+    if (!jds.length) { alert('Enter at least one JD'); return; }
+    
+    const btn = document.getElementById('submitBtn');
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Submitting...';
+
+    const resp = await fetch("/api/v1/matches", {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ candidate_id: candidateId, jd_inputs: jds })
+    });
+    
+    btn.disabled = false;
+    btn.textContent = originalText;
+
+    if (resp.ok) {
+        // Clear inputs except the first one
+        const container = document.getElementById('jdContainer');
+        container.innerHTML = `
+            <div class="jd-entry card" style="background:var(--surface2); padding:1rem; margin-bottom:1rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                    <label style="margin:0">Job Description #1</label>
+                </div>
+                <textarea class="jd-textarea" rows="6" placeholder="Paste JD text or URL here..."></textarea>
+            </div>
+        `;
+        refreshJobs();
+    }
+}
+
+async function refreshJobs() {
+    const onlyMine = document.getElementById('filterToggle').checked;
+    let url = "/api/v1/matches?limit=20";
+    if (onlyMine && candidateId) url += `&candidate_id=${candidateId}`;
+    
+    const resp = await fetch(url);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const container = document.getElementById('jobResults');
+    
+    if (data.length === 0) {
+        container.innerHTML = '<p style="text-align:center; color:var(--text2); padding:2rem;">No jobs found. Start by setting up a profile!</p>';
+        return;
+    }
+
+    // Build or update cards
+    data.forEach(job => {
+        let card = document.getElementById(`card-${job.id}`);
+        if (!card) {
+            card = document.createElement('div');
+            card.id = `card-${job.id}`;
+            card.className = 'card';
+            card.style.background = 'var(--surface2)';
+            container.appendChild(card);
+            if (job.status === 'pending' || job.status === 'processing') startPolling(job.id);
+        }
+        updateJobUI(job.id, job);
+    });
+    
+    // Remove cards that are no longer in the filtered list
+    const jobIds = data.map(j => j.id);
+    [...container.children].forEach(child => {
+        if (!jobIds.includes(child.id.replace('card-', ''))) container.removeChild(child);
+    });
+}
+
+function startPolling(jobId) {
+    if (pollIntervals[jobId]) return;
+    pollIntervals[jobId] = setInterval(async () => {
+        const resp = await fetch(`/api/v1/matches/${jobId}`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        updateJobUI(jobId, data);
+        if (data.status === 'completed' || data.status === 'failed') {
+            clearInterval(pollIntervals[jobId]);
+            delete pollIntervals[jobId];
+        }
+    }, 2000);
+}
+
+function updateJobUI(jobId, data) {
+    const card = document.getElementById(`card-${jobId}`);
+    if (!card) return;
+    const r = data.result || {};
+    const t = data.agent_trace || {};
+    card.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:flex-start">
+            <div style="flex:1">
+                <div class="section-label">Job ID: ${jobId}</div>
+                <h3 style="margin-bottom:0.25rem">${data.jd_input.split('\n')[0]}</h3>
+                <div class="meta">Candidate: ${data.candidate_id.substring(0,8)}... | Created ${new Date(data.created_at).toLocaleString()}</div>
+            </div>
+            <div class="pill pill-${data.status}">${data.status}</div>
+        </div>
+        ${data.status === 'completed' ? `
+            <div class="results-grid" style="margin-top:1rem; display:grid; grid-template-columns:100px 1fr 120px; gap:1.5rem; background:var(--bg); padding:1rem; border-radius:12px;">
+                <div style="text-align:center; border-right:1px solid var(--border)">
+                    <div style="font-size:1.75rem; font-weight:700; color:var(--accent)">${r.overall_score ?? '—'}</div>
+                    <div style="font-size:0.7rem; color:var(--text2); text-transform:uppercase;">Score</div>
+                </div>
+                <div style="display:flex; gap:1.5rem; align-items:center;">
+                    <div class="dim" style="font-size:0.8rem">Skills <span style="display:block; font-weight:600; color:var(--text)">${r.dimension_scores?.skills ?? '—'}</span></div>
+                    <div class="dim" style="font-size:0.8rem">Experience <span style="display:block; font-weight:600; color:var(--text)">${r.dimension_scores?.experience ?? '—'}</span></div>
+                    <div class="dim" style="font-size:0.8rem">Seniority <span style="display:block; font-weight:600; color:var(--text)">${r.dimension_scores?.seniority_fit ?? '—'}</span></div>
+                </div>
+                <div class="pill pill-${r.confidence === 'high' ? 'completed' : r.confidence === 'medium' ? 'pending' : 'failed'}" style="align-self:center">${r.confidence} confidence</div>
+            </div>
+            <p style="font-size:.85rem;color:var(--text2);margin:.75rem 0">${r.reasoning || ''}</p>
+            <div class="section-label">Matched Skills</div>
+            <div style="margin-bottom:0.5rem">${(r.matched_skills||[]).map(s=>`<span class="skill-tag skill-matched">${s}</span>`).join('')||'<span style="font-size:.8rem;color:var(--text2)">None</span>'}</div>
+            <div class="section-label">Gap Skills</div>
+            <div style="margin-bottom:0.75rem">${(r.gap_skills||[]).map(s=>`<span class="skill-tag skill-gap">${s}</span>`).join('')||'<span style="font-size:.8rem;color:var(--text2)">None</span>'}</div>
+            ${(r.learning_plan||[]).length ? `<div class="section-label">Learning Plan</div>
+            ${r.learning_plan.map(lp=>`<div class="lp-item">
+                <h4 style="font-size:0.9rem">#${lp.priority_rank} ${lp.skill} <span style="color:var(--green);font-size:0.75rem">+${lp.estimated_match_gain_pct}% Match Gain</span></h4>
+                <div class="meta" style="margin-bottom:0.5rem">${lp.rationale}</div>
+                ${(lp.resources||[]).map(res=>`<a href="${res.url}" target="_blank" style="display:inline-block; margin-bottom:0.25rem; font-size:0.8rem; color:var(--accent); text-decoration:none;">📚 ${res.title} (${res.estimated_hours}h)</a><br>`).join('')}
+            </div>`).join('')}` : ''}
+            <details>
+                <summary style="margin-top:0.5rem; color:var(--accent2); font-weight:600">📊 View Agent Execution Trace</summary>
+                <div class="trace" style="margin-top:0.5rem; border:1px solid var(--border); padding:1rem;">
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap:1rem; margin-bottom:1rem; border-bottom:1px solid var(--border); padding-bottom:1rem;">
+                        <div>
+                            <div class="section-label">Total Time</div>
+                            <div style="font-weight:600; color:var(--text)">${t.elapsed_ms ?? 0}ms</div>
+                        </div>
+                        <div>
+                            <div class="section-label">LLM Calls</div>
+                            <div style="font-weight:600; color:var(--text)">${t.total_llm_calls ?? 0}</div>
+                        </div>
+                        <div>
+                            <div class="section-label">Input Tokens</div>
+                            <div style="font-weight:600; color:var(--text)">${t.total_input_tokens ?? 0}</div>
+                        </div>
+                        <div>
+                            <div class="section-label">Output Tokens</div>
+                            <div style="font-weight:600; color:var(--text)">${t.total_output_tokens ?? 0}</div>
+                        </div>
+                    </div>
+                    <div class="section-label">Tool Call Timeline</div>
+                    <div style="display:flex; flex-direction:column; gap:0.4rem; margin-top:0.5rem;">
+                        ${(t.tool_calls || []).map(tc => `
+                            <div style="display:flex; justify-content:space-between; align-items:center; background:var(--surface); padding:0.4rem 0.6rem; border-radius:6px; font-size:0.75rem;">
+                                <div style="display:flex; align-items:center; gap:0.5rem;">
+                                    <span style="color:var(--text); font-weight:600">${tc.tool}</span>
+                                    <span class="pill pill-${tc.status}" style="padding:0.1rem 0.4rem; font-size:0.65rem">${tc.status}</span>
+                                </div>
+                                <div style="color:var(--text2)">${tc.latency_ms}ms</div>
+                            </div>
+                        `).join('') || '<div style="color:var(--text2)">No tools called.</div>'}
+                    </div>
+                </div>
+            </details>
+        ` : data.status === 'failed' ? `
+            <div class="alert alert-error" style="margin-top:1rem">✗ ${data.error_detail || 'Agent reasoning failed.'}</div>
+        ` : `
+            <div style="margin-top:1rem; color:var(--text2); font-size:0.85rem; display:flex; align-items:center; gap:0.5rem;">
+                <div class="pill pill-pending">Processing</div> Agent is analyzing match...
+            </div>
+        `}
+    `;
+}
+
+async function requeueJob() {
+    const jobId = document.getElementById('requeueJobId').value.trim();
+    if (!jobId) { alert('Enter a job UUID'); return; }
+    const resp = await fetch("/api/v1/admin/requeue/" + jobId, { method:'POST' });
+    if (resp.ok) { refreshJobs(); }
+}
+
+refreshJobs();
+setInterval(refreshJobs, 10000);
+</script>
+</body>
+</html>

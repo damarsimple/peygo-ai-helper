@@ -1,0 +1,162 @@
+{
+  "id": "671f8089-94a6-4f49-997c-381fe90d3eca",
+  "candidate_id": "41978e5c-d568-4fd3-80e1-314e5d8a6d71",
+  "jd_input": "Senior Cloud Engineer. Required: Kubernetes, Terraform, Go, AWS. Nice to have: Python. Seniority: senior.",
+  "status": "completed",
+  "result": {
+    "job_id": "671f8089-94a6-4f49-997c-381fe90d3eca",
+    "reasoning": "Candidate scored 49 with low confidence. Agent used fallback reconstruction \u2014 results may be conservative. Score reduced by 10 points due to low-confidence assessment.",
+    "confidence": "low",
+    "gap_skills": [
+      "Kubernetes",
+      "Terraform",
+      "Go",
+      "AWS"
+    ],
+    "agent_trace": {
+      "tool_calls": [
+        {
+          "tool": "extract_jd_requirements",
+          "status": "success",
+          "latency_ms": 0
+        },
+        {
+          "tool": "score_candidate_against_requirements",
+          "status": "success",
+          "latency_ms": 0
+        },
+        {
+          "tool": "research_skill_resources",
+          "status": "success",
+          "latency_ms": 0
+        },
+        {
+          "tool": "research_skill_resources",
+          "status": "success",
+          "latency_ms": 0
+        },
+        {
+          "tool": "prioritise_skill_gaps",
+          "status": "success",
+          "latency_ms": 0
+        },
+        {
+          "tool": "research_skill_resources",
+          "status": "success",
+          "latency_ms": 28432
+        }
+      ],
+      "total_llm_calls": 9,
+      "fallbacks_triggered": 0
+    },
+    "learning_plan": [
+      {
+        "skill": "AWS",
+        "rationale": "AWS is the dominant cloud platform and a foundational requirement for most mid-level technical roles. Proficiency here often serves as a hard filter in job descriptions and is a prerequisite for effectively utilizing tools like Kubernetes and Terraform.",
+        "resources": [
+          {
+            "url": "https://www.google.com/search?q=learn+AWS",
+            "type": "doc",
+            "title": "Learn AWS",
+            "estimated_hours": 15,
+            "relevance_score": 0.8
+          }
+        ],
+        "priority_rank": 1,
+        "estimated_match_gain_pct": 20
+      },
+      {
+        "skill": "Kubernetes",
+        "rationale": "Kubernetes is the industry standard for container orchestration. Mastery signals the ability to manage scalable, resilient systems and is a key differentiator for mid-level DevOps, SRE, and platform engineering roles.",
+        "resources": [
+          {
+            "url": "https://www.google.com/search?q=learn+Kubernetes",
+            "type": "doc",
+            "title": "Learn Kubernetes",
+            "estimated_hours": 15,
+            "relevance_score": 0.8
+          }
+        ],
+        "priority_rank": 2,
+        "estimated_match_gain_pct": 15
+      },
+      {
+        "skill": "Terraform",
+        "rationale": "Terraform is the de facto standard for Infrastructure as Code (IaC). It demonstrates professional practices in provisioning and managing infrastructure, complementing cloud and orchestration skills while ensuring reproducibility.",
+        "resources": [
+          {
+            "url": "https://www.google.com/search?q=learn+Terraform",
+            "type": "doc",
+            "title": "Learn Terraform",
+            "estimated_hours": 15,
+            "relevance_score": 0.8
+          }
+        ],
+        "priority_rank": 3,
+        "estimated_match_gain_pct": 10
+      },
+      {
+        "skill": "Go",
+        "rationale": "Go is highly valued for backend and platform tooling but has narrower applicability compared to cloud and IaC tools. Its impact is significant for specific tech stacks but is less universal across general mid-level roles than the other skills.",
+        "resources": [
+          {
+            "url": "https://www.google.com/search?q=learn+Go",
+            "type": "doc",
+            "title": "Learn Go",
+            "estimated_hours": 15,
+            "relevance_score": 0.8
+          }
+        ],
+        "priority_rank": 4,
+        "estimated_match_gain_pct": 5
+      }
+    ],
+    "overall_score": 39,
+    "matched_skills": [
+      "Python"
+    ],
+    "dimension_scores": {
+      "skills": 20,
+      "experience": 80,
+      "seniority_fit": 70
+    }
+  },
+  "agent_trace": {
+    "tool_calls": [
+      {
+        "tool": "extract_jd_requirements",
+        "status": "success",
+        "latency_ms": 0
+      },
+      {
+        "tool": "score_candidate_against_requirements",
+        "status": "success",
+        "latency_ms": 0
+      },
+      {
+        "tool": "research_skill_resources",
+        "status": "success",
+        "latency_ms": 0
+      },
+      {
+        "tool": "research_skill_resources",
+        "status": "success",
+        "latency_ms": 0
+      },
+      {
+        "tool": "prioritise_skill_gaps",
+        "status": "success",
+        "latency_ms": 0
+      },
+      {
+        "tool": "research_skill_resources",
+        "status": "success",
+        "latency_ms": 28432
+      }
+    ],
+    "total_llm_calls": 9,
+    "fallbacks_triggered": 0
+  },
+  "error_detail": null,
+  "attempt_count": 1
+}
