@@ -78,6 +78,8 @@ class JobRunner:
                 candidate_dict = candidate.model_dump()
                 message = f"""Here is the complete data for analysis:
 
+JOB ID: {job_id_str}
+
 CANDIDATE PROFILE (JSON):
 {json_mod.dumps(candidate_dict, indent=2)}
 

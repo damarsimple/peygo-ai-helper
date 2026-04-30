@@ -85,7 +85,7 @@ OUTPUT FORMAT  (MODE B only)
 Output ONLY the JSON below. No markdown fences, no prose, no explanation.
 
 {
-  "job_id": "{job_id}",
+  "job_id": "<use session_id from context or ask user to provide>",
   "job_title": "Software Engineer",
   "overall_score": <int 0–100>,
   "confidence": "low|medium|high",
