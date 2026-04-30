@@ -408,13 +408,15 @@ function updateJobUI(jobId, data) {
     const card = document.getElementById(`card-${jobId}`);
     if (!card) return;
     const r = data.result || {};
-    const t = data.agent_trace || {};
+    const t = data.agent_trace || r.agent_trace || {};
+    const jobTitle = r.job_title || data.jd_input?.split('\n')[0] || 'Job';
+    const createdStr = data.created_at ? new Date(data.created_at).toLocaleString() : 'Pending...';
     card.innerHTML = `
         <div style="display:flex; justify-content:space-between; align-items:flex-start">
             <div style="flex:1">
                 <div class="section-label">Job ID: ${jobId}</div>
-                <h3 style="margin-bottom:0.25rem">${data.jd_input.split('\n')[0]}</h3>
-                <div class="meta">Candidate: ${data.candidate_id.substring(0,8)}... | Created ${new Date(data.created_at).toLocaleString()}</div>
+                <h3 style="margin-bottom:0.25rem">${jobTitle}</h3>
+                <div class="meta">Candidate: ${data.candidate_id?.substring(0,8)}... | Created ${createdStr}</div>
             </div>
             <div class="pill pill-${data.status}">${data.status}</div>
         </div>

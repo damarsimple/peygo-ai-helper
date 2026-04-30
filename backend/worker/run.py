@@ -85,6 +85,14 @@ async def worker_loop():
         session_service=session_service,
         auto_create_session=True,
     )
+
+    log.info("adk_db_init", message="Pre-initializing ADK database tables")
+    try:
+        await session_service.list_sessions(app_name="pelgo", user_id="init")
+    except Exception as e:
+        log.warning("adk_db_init_warning", error=str(e)[:200])
+    log.info("adk_db_ready", message="ADK database tables initialized")
+
     job_runner = JobRunner(runner, session_service, db_pool)
 
     max_retries = 3
