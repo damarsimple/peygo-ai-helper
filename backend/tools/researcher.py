@@ -4,8 +4,12 @@ import time
 from diskcache import Cache
 import json
 import os
+from pydantic import BaseModel, Field
 from google.adk.tools.tool_context import ToolContext
-from backend.tools.llm_utils import resolve_model, get_openai_client, extract_json_from_response, unwrap_json_array
+from backend.tools.llm_utils import (
+    resolve_model, get_openai_client,
+    build_json_schema, create_structured_request, parse_structured_response,
+)
 
 log = structlog.get_logger()
 
@@ -13,6 +17,19 @@ _resource_cache = Cache("/tmp/pelgo_cache")
 
 # Tavily API key loaded from environment (.env file)
 # Falls back gracefully to DuckDuckGo + LLM if not set
+
+
+# ── LLM output schemas ──────────────────────────────────────────────────
+
+
+class HourEstimateOutput(BaseModel):
+    """Schema for LLM hours estimation."""
+    hours: list[int]
+
+
+class ResourceOutput(BaseModel):
+    """Schema for LLM-generated placeholder resources."""
+    resources: list[dict]  # dict keeps it flexible for the downstream parser
 
 
 async def research_skill_resources(
@@ -36,7 +53,7 @@ async def research_skill_resources(
             "type" (course/project/cert/doc), "relevance_score".
     """
     start_time = time.time()
-    
+
     cache_key = f"skill:{hashlib.md5(f'{skill_name}:{seniority_context}'.encode()).hexdigest()}"
     cached = _resource_cache.get(cache_key)
     if cached is not None:
@@ -67,7 +84,7 @@ async def research_skill_resources(
         log.info("research_tavily_success", skill=skill_name, results_found=len(resources))
     except Exception as e:
         log.warning("research_tavily_failed", skill=skill_name, error=str(e)[:200])
-        
+
         # Fallback: DuckDuckGo search
         try:
             from duckduckgo_search import DDGS
@@ -96,10 +113,10 @@ async def research_skill_resources(
         resources = await _llm_estimate_hours(resources, skill_name, seniority_context)
 
     _resource_cache.set(cache_key, resources, expire=86400)
-    
+
     # Record latency in tool_context for trace collection
     _record_latency(tool_context, start_time)
-    
+
     log.info("research_complete", skill=skill_name, resource_count=len(resources))
     return resources
 
@@ -117,7 +134,7 @@ async def _llm_estimate_hours(resources: list[dict], skill: str, seniority: str)
     """Use LLM to estimate hours for a batch of resources based on skill, seniority, and resource type."""
     if not resources:
         return resources
-    
+
     prompt = f"""Estimate the time needed (in hours) to complete each learning resource for a {seniority}-level learner studying {skill}.
 
 Resources:
@@ -135,30 +152,35 @@ Guidelines:
 """
     try:
         client = get_openai_client()
-        response = await client.chat.completions.create(
-            model=resolve_model(),
+        schema = {
+            "type": "object",
+            "properties": {
+                "hours": {
+                    "type": "array",
+                    "items": {"type": "integer", "minimum": 1, "maximum": 100},
+                }
+            },
+            "required": ["hours"],
+            "additionalProperties": False,
+        }
+        payload = create_structured_request(
             messages=[{"role": "user", "content": prompt}],
+            schema=schema,
             temperature=0.1,
-            response_format={"type": "json_object"},
         )
-        content = extract_json_from_response(response.choices[0].message.content)
-        estimates = json.loads(content)
-        # Unwrap object wrapper if present (json_object mode returns {"hours": [...]})
-        if isinstance(estimates, dict):
-            for v in estimates.values():
-                if isinstance(v, list):
-                    estimates = v
-                    break
-        if isinstance(estimates, list):
-            for i, r in enumerate(resources):
-                if i < len(estimates):
-                    try:
-                        r["estimated_hours"] = max(1, min(100, int(estimates[i])))
-                    except (ValueError, TypeError):
-                        pass
+        response = await client.chat.completions.create(**payload)
+        estimates = parse_structured_response(response)
+        hours_list = estimates.get("hours", [])
+
+        for i, r in enumerate(resources):
+            if i < len(hours_list):
+                try:
+                    r["estimated_hours"] = max(1, min(100, int(hours_list[i])))
+                except (ValueError, TypeError):
+                    pass
     except Exception as e:
         log.warning("llm_hours_estimation_failed", skill=skill, error=str(e)[:100])
-    
+
     return resources
 
 
@@ -193,44 +215,55 @@ Return ONLY a JSON object with a "resources" key:
 Types: course, project, cert, doc.
 """
     client = get_openai_client()
-    response = await client.chat.completions.create(
-        model=resolve_model(),
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.3,
-        response_format={"type": "json_object"},
-    )
-    raw = extract_json_from_response(response.choices[0].message.content)
-    try:
-        parsed = json.loads(raw)
-        items = unwrap_json_array(parsed)
-        resources = [
-            {
-                "title": item.get("title", f"{skill_name} guide"),
-                "url": item.get("url", ""),
-                "estimated_hours": int(item.get("estimated_hours", 0)),  # Default 0, will be estimated by LLM
-                "type": item.get("type", "doc") if item.get("type") in ("course","project","cert","doc") else "doc",
-                "relevance_score": float(item.get("relevance_score", 0.7)),
+    schema = {
+        "type": "object",
+        "properties": {
+            "resources": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string"},
+                        "url": {"type": "string"},
+                        "estimated_hours": {"type": "integer", "minimum": 1, "maximum": 100},
+                        "type": {"type": "string", "enum": ["course", "project", "cert", "doc"]},
+                        "relevance_score": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+                    },
+                    "required": ["title", "url", "type"],
+                    "additionalProperties": False,
+                },
             }
-            for item in items[:3]
-        ]
-        # Use LLM to estimate hours for resources where not provided
-        resources_needing_hours = [r for r in resources if r["estimated_hours"] == 0]
-        if resources_needing_hours:
-            resources_needing_hours = await _llm_estimate_hours(resources_needing_hours, skill_name, seniority_context)
-            # Merge back
-            idx = 0
-            for r in resources:
-                if r["estimated_hours"] == 0 and idx < len(resources_needing_hours):
-                    r["estimated_hours"] = resources_needing_hours[idx]["estimated_hours"]
-                    idx += 1
-        return resources
-    except Exception:
-        # Fallback: create basic resource and estimate hours via LLM
-        fallback = [{
-            "title": f"Learn {skill_name}",
-            "url": f"https://www.google.com/search?q=learn+{skill_name.replace(' ', '+')}",
-            "estimated_hours": 0,
-            "type": "doc",
-            "relevance_score": 0.5,
-        }]
-        return await _llm_estimate_hours(fallback, skill_name, seniority_context)
+        },
+        "required": ["resources"],
+        "additionalProperties": False,
+    }
+    payload = create_structured_request(
+        messages=[{"role": "user", "content": prompt}],
+        schema=schema,
+        temperature=0.3,
+    )
+    response = await client.chat.completions.create(**payload)
+    parsed = parse_structured_response(response)
+
+    resources = []
+    for item in parsed.get("resources", [])[:3]:
+        resources.append({
+            "title": item.get("title", f"{skill_name} guide"),
+            "url": item.get("url", ""),
+            "estimated_hours": int(item.get("estimated_hours", 0)),
+            "type": item.get("type", "doc") if item.get("type") in ("course", "project", "cert", "doc") else "doc",
+            "relevance_score": float(item.get("relevance_score", 0.7)),
+        })
+
+    # Use LLM to estimate hours for resources where not provided
+    resources_needing_hours = [r for r in resources if r["estimated_hours"] == 0]
+    if resources_needing_hours:
+        resources_needing_hours = await _llm_estimate_hours(resources_needing_hours, skill_name, seniority_context)
+        # Merge back
+        idx = 0
+        for r in resources:
+            if r["estimated_hours"] == 0 and idx < len(resources_needing_hours):
+                r["estimated_hours"] = resources_needing_hours[idx]["estimated_hours"]
+                idx += 1
+
+    return resources

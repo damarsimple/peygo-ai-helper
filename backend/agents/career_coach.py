@@ -19,6 +19,7 @@ from backend.worker.callbacks import (
 
 # Import schema
 from backend.schemas import AgentOutputForLLM
+from backend.tools.llm_utils import build_json_schema
 
 # ── Prompts ──────────────────────────────────────────────────────────────
 
@@ -159,12 +160,13 @@ tool_agent = Agent(
 )
 
 # Agent 2: Formats session state into structured JSON (output_schema works without tools!)
+# Pass a flattened schema so llguidance can enforce it without $ref resolution
 formatter_agent = Agent(
     name="career_formatter",
     description="Formats intermediate results into structured JSON output.",
     model=llm_model,
     instruction=SYSTEM_PROMPT_FORMATTER,
-    output_schema=AgentOutputForLLM,
+    output_schema=build_json_schema(AgentOutputForLLM),
     output_key="final_output",
 )
 

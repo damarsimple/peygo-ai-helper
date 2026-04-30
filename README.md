@@ -16,10 +16,11 @@ Google ADK — chosen for native session-scoped state management, plain-function
 registration, and real-time event streaming via `run_async()` that lets the orchestrator
 collect a verified `agent_trace` without relying on the LLM to self-report.
 
-The agent uses ADK's **`SequentialAgent` pipeline pattern** (the recommended approach
-when `output_schema` + `tools` are incompatible with non-Gemini models). Configured
-via LiteLLM to support any OpenAI-compatible endpoint (OpenAI, vLLM, Ollama, etc.).
-See [ADK docs — sub-agents for output formatting](https://adk.dev/agents/llm-agents/index.md#structuring-data).
+The agent uses ADK's **`SequentialAgent` pipeline pattern**. Structured output is
+enforced at the vLLM layer via **llguidance** (`response_format: json_schema`), which
+guillotine-trims the model's token space so the response is always schema-valid JSON —
+no fence-stripping or manual repair needed. Configured via LiteLLM to support any
+OpenAI-compatible endpoint (OpenAI, vLLM, Ollama, etc.).
 
 ## Agent Pipeline
 
@@ -27,19 +28,22 @@ The career coach is a `SequentialAgent` with two sub-agents:
 
 1. **`tool_agent`** — Executes the multi-step tool workflow, writing intermediate results
    (`score`, `gap_skills`, `prioritized_gaps`) to `session.state` via `tool_context.state`.
-   Has **no** `output_schema` (non-Gemini models don't support schema + tools simultaneously).
+   Uses `response_format: json_schema` (llguidance) for guaranteed schema-valid JSON
+   from every tool call.
 2. **`formatter_agent`** — Reads intermediate state via instruction templating
    (`{score}`, `{gap_skills}`, `{job_id}`) and produces the final schema-compliant JSON.
-   Has `output_schema=AgentOutputForLLM` and `output_key="final_output"` — works
-   because it has **no tools**, so all models support it.
+   Has `output_schema=AgentOutputForLLM` and `output_key="final_output"` with llguidance
+   enforcement for strict output validation.
 
 ### Runtime Tool-Call Sequencing
 
 The agent decides its tool-call sequence at runtime based on data it discovers:
 
 1. **`extract_jd_requirements`** — Always first. Parses JD into structured requirements.
+   Uses `json_schema` response format (llguidance) — output is guaranteed schema-valid.
 2. **`score_candidate_against_requirements`** — Always second. Uses LLM-powered SEMANTIC
    matching to compute match score + gap skills (falls back to exact matching if LLM fails).
+   Schema enforced via llguidance — no manual JSON repair needed.
 3. **`prioritise_skill_gaps`** — Ranks gaps by estimated impact on getting the role.
 4. **Focused research** — Researches top 1–2 prioritized gaps. If confidence is "low",
    may research 1 additional gap (max 4 research calls total).
@@ -88,13 +92,16 @@ On 3rd attempt: job moves to `failed` with error detail and partial agent_trace.
 dead-lettered to prevent infinite loops.
 
 ### Invalid Tool Output
-**Strategy**: `extract_jd_requirements` retries up to 3 times with progressively stricter
-prompts before returning a fallback dict with empty skill arrays.
+**Strategy**: `extract_jd_requirements` uses `json_schema` response format (llguidance)
+which guarantees schema-valid JSON. If Pydantic validation still fails (schema mismatch),
+retries up to 3 times with progressively stricter prompts before returning a fallback dict
+with empty skill arrays.
 `score_candidate_against_requirements` handles empty/missing requirement fields gracefully
 (returns low score with low confidence).
 **Decision**: Retry with different prompt > proceed with partial data > abort.
-Rationale: Schema validation failures are usually LLM formatting issues, not data issues.
-A different prompt format often fixes them.
+**Why**: Schema validation failures are rare with llguidance (model output is constrained),
+but may occur if the schema definition and prompt disagree. A different prompt format
+often fixes them.
 
 ### Low Confidence Score
 **Strategy**: Orchestrator-enforced guard in `JobRunner._apply_low_confidence_guard()`.
@@ -110,18 +117,19 @@ before the orchestrator guard is applied.
 
 ### Formatter Schema Rejection
 **Strategy**: `JobRunner` catches `ValidationError` and reconstructs `AgentOutput` from
-intermediate `session.state` keys (score, gap_skills, prioritized_gaps).
-**Why**: The formatter may fail at high temperatures. The tool_agent already collected
-valid data, so reconstruction preserves the result.
+intermediate `session.state` keys (score, gap_skills, prioritized_gaps). With llguidance,
+this path is rarely hit — schema violations are constrained by the vLLM layer.
+**Why**: Edge cases at high temperatures. The tool_agent already collected valid data,
+so reconstruction preserves the result.
 
 ## Tool Suite
 
 | Tool | Description | External Calls | Caching |
 |------|------------|----------------|---------|
-| `extract_jd_requirements` | Parses JD text/URL → structured requirements | LLM (JSON extraction) | SHA-256 cache, 24h TTL |
-| `score_candidate_against_requirements` | LLM-powered semantic scoring + gap detection | LLM (semantic matching) | N/A |
-| `research_skill_resources` | Finds learning resources via Tavily (primary) or DuckDuckGo (fallback) | Tavily API + LLM fallback | Per-skill cache, 24h TTL |
-| `prioritise_skill_gaps` | LLM-ranks gaps by impact | LLM (ranking + rationale) | N/A (per-job) |
+| `extract_jd_requirements` | Parses JD text/URL → structured requirements | LLM (json_schema via llguidance) | SHA-256 cache, 24h TTL |
+| `score_candidate_against_requirements` | LLM-powered semantic scoring + gap detection | LLM (json_schema via llguidance) | N/A |
+| `research_skill_resources` | Finds learning resources via Tavily (primary) or DuckDuckGo (fallback) | Tavily API + LLM (json_schema) | Per-skill cache, 24h TTL |
+| `prioritise_skill_gaps` | LLM-ranks gaps by impact | LLM (json_schema via llguidance) | N/A (per-job) |
 
 **Note on `prioritise_skill_gaps` parameter naming**: The spec references `job_market_context`;
 we use `seniority_context` because seniority level is the most actionable job-market signal
@@ -129,12 +137,14 @@ available from the extracted JD. This is a deliberate narrowing — a production
 include salary band, location, and demand trend data in a broader context object.
 
 ### Google ADK Integration
-All 4 tools are ADK-registered via `ToolContext`. Configured with LiteLLM's `LiteLlm`
-wrapper to support any OpenAI-compatible endpoint. The agent uses ADK's:
+All 4 tools use `response_format: json_schema` via vLLM's llguidance backend, which
+constrains token generation to produce only schema-valid JSON. Configured with
+LiteLLM's `LiteLlm` wrapper to support any OpenAI-compatible endpoint.
+The agent uses ADK's:
 - `SequentialAgent` for pipeline orchestration
 - `DatabaseSessionService` for persistent session state
 - `run_async()` event streaming for real trace collection
-- `output_schema` validation on the formatter agent
+- `output_schema` with flattened schema (llguidance) on the formatter agent
 - `before_agent_callback` for session state injection
 
 ADK provided session-scoped state management that LangGraph does not have built-in,
@@ -143,9 +153,11 @@ than fabricating them.
 
 ## Key Architecture Decisions
 
-1. **`SequentialAgent` pipeline** — `tool_agent` (tools, no schema) →
-   `formatter_agent` (schema, no tools). This follows the ADK-recommended pattern
-   for non-Gemini models where `output_schema` + `tools` is unsupported.
+1. **`tool_agent` (tools + llguidance schema) →
+   `formatter_agent` (output_schema + llguidance schema)**. Every LLM call uses
+   `response_format: json_schema` via vLLM's llguidance backend, which constrains
+   token generation to produce only schema-valid JSON. This eliminates the need
+   for manual fence-stripping, array-unwrapping, or Pydantic repair.
 
 2. **Session state via `before_agent_callback`**: `run_async()` does **not** accept a
    `state_delta` parameter (it is not a documented ADK API). Instead, `JobRunner` populates
@@ -206,10 +218,11 @@ The formula remains deterministic and reproducible — only the skill matching s
 **Chose `SequentialAgent` pipeline** (tool_agent → formatter_agent) over a single ReAct agent.
 
 **Trade-off**: A single ReAct agent would naturally alternate between tool calls and reasoning,
-potentially producing a better learning_plan. However, ADK does not support `output_schema` on
-agents that also have tools (for non-Gemini models). Our pipeline pattern works around this: the
-tool_agent collects data, the formatter_agent produces validated JSON. This is the ADK-recommended
-pattern and ensures schema compliance.
+potentially producing a better learning_plan. However, ADK's `output_schema` on agents with
+tools requires model-level JSON schema enforcement. Our pipeline pattern ensures this:
+the tool_agent collects data with llguidance-enforced schemas, the formatter_agent
+produces validated JSON with a flattened schema (no `$ref` pointers). Every LLM call
+uses `json_schema` response format for guaranteed structured output.
 
 ### Caching Strategy
 
@@ -261,8 +274,8 @@ incomplete extractions. For production, an OCR-enhanced pipeline would be more r
 # Unit tests (no running server required)
 pytest backend/tests/test_fixes.py -v
 
-# Schema compliance tests (requires running vLLM endpoint)
-pytest backend/tests/test_qwen_schema.py -v
+# LLM schema enforcement tests (requires vLLM + llguidance endpoint)
+pytest backend/tests/test_llguidance.py -v
 
 # Integration tests (requires running server + database)
 pytest backend/tests/test_integration.py -v

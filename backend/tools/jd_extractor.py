@@ -7,16 +7,16 @@ from pydantic import ValidationError
 from google.adk.tools.tool_context import ToolContext
 import json
 import structlog
-from backend.tools.llm_utils import resolve_model, get_openai_client, extract_json_from_response
+from backend.tools.llm_utils import (
+    resolve_model, get_openai_client,
+    build_json_schema, create_structured_request, parse_structured_response,
+)
 
 log = structlog.get_logger()
 
 _cache = Cache("/tmp/pelgo_cache")
 
 MAX_RETRIES = 2
-
-
-
 
 
 async def extract_jd_requirements(
@@ -50,6 +50,9 @@ async def extract_jd_requirements(
         text = job_url_or_text
 
     from backend.schemas import JDRequirements
+
+    # Build the schema once — used for all retry attempts
+    schema = build_json_schema(JDRequirements)
 
     # Try multiple prompts if validation fails
     prompts = [
@@ -94,15 +97,13 @@ seniority_level (string), domain (string), responsibilities (array)
     for attempt, prompt in enumerate(prompts, 1):
         try:
             client = get_openai_client()
-            response = await client.chat.completions.create(
-                model=resolve_model(),
+            payload = create_structured_request(
                 messages=[{"role": "user", "content": prompt}],
+                schema=schema,
                 temperature=0.1,
-                response_format={"type": "json_object"},
             )
-
-            raw = extract_json_from_response(response.choices[0].message.content)
-            extracted = json.loads(raw)
+            response = await client.chat.completions.create(**payload)
+            extracted = parse_structured_response(response)
 
             validated = JDRequirements.model_validate(extracted)
             result = validated.model_dump()

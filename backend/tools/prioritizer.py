@@ -2,12 +2,24 @@ import json
 import structlog
 import time
 from google.adk.tools.tool_context import ToolContext
+from pydantic import BaseModel, Field
 from backend.schemas import PrioritizedGap
-from backend.tools.llm_utils import resolve_model, get_openai_client, extract_json_from_response, unwrap_json_array
+from backend.tools.llm_utils import (
+    resolve_model, get_openai_client,
+    build_json_schema, create_structured_request, parse_structured_response,
+)
 
 log = structlog.get_logger()
 
 MAX_RETRIES = 2
+
+
+# ── LLM output schema ────────────────────────────────────────────────────
+
+
+class PriorityOutput(BaseModel):
+    """Schema for prioritized skill gaps."""
+    priorities: list[PrioritizedGap]
 
 
 async def prioritise_skill_gaps(
@@ -22,6 +34,9 @@ async def prioritise_skill_gaps(
         _record_latency(tool_context, start_time)
         return []
 
+    schema = build_json_schema(PriorityOutput)
+
+    # Try multiple prompts if validation fails
     prompts = [
         f"""You are a career advisor. Rank these skill gaps by their impact on getting a {seniority_context} role.
 Gap skills: {json.dumps(gap_skills)}
@@ -41,17 +56,15 @@ Return JSON: {{"priorities": [{{"skill": "name", "priority_rank": 1, "estimated_
     for attempt, prompt in enumerate(prompts, 1):
         try:
             client = get_openai_client()
-            response = await client.chat.completions.create(
-                model=resolve_model(),
+            payload = create_structured_request(
                 messages=[{"role": "user", "content": prompt}],
+                schema=schema,
                 temperature=0.1,
-                response_format={"type": "json_object"},
             )
+            response = await client.chat.completions.create(**payload)
+            parsed = parse_structured_response(response)
 
-            raw = extract_json_from_response(response.choices[0].message.content)
-            parsed = json.loads(raw)
-            ranked = unwrap_json_array(parsed)
-
+            ranked = parsed.get("priorities", [])
             validated = [PrioritizedGap.model_validate(g) for g in ranked]
 
             log.info(
