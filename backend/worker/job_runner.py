@@ -29,13 +29,13 @@ class JobRunner:
     async def run_job(self, job_id: str, candidate_id: str, jd_input: str) -> AgentOutput:
         """Execute the full agent pipeline for one match job.
 
-        Uses ADK SequentialAgent pattern:
-        1. tool_agent runs tools and populates session state.
-        2. formatter_agent reads session state and produces schema-compliant JSON.
-        3. Low-confidence guard: if score is low, augment with research.
+        Uses a single ADK Agent with tools (replaces SequentialAgent):
+        1. Agent calls tools to analyze candidate vs job description.
+        2. Agent produces structured JSON output in the final response.
+        3. Low-confidence guard: if score is low, apply conservative adjustment.
 
-        Path 1: Parse final_output from session state (set by formatter output_key).
-        Path 2: Fallback reconstruction if parser fails.
+        Path 1: Parse JSON from the agent's final response text.
+        Path 2: Fallback reconstruction from intermediate tool state.
         """
         candidate = await self._get_candidate(candidate_id)
 
@@ -87,7 +87,11 @@ class JobRunner:
         try:
             trace_collector = AgentTraceCollector(callback_state=cb._cb_state.latency)
 
-            # Run the SequentialAgent pipeline
+            # Collect final text from the event stream.
+            # With a single Agent (no SequentialAgent), we parse the final
+            # response directly from the last text event.
+            final_texts = []
+
             try:
                 async for event in self.runner.run_async(
                     user_id=candidate_id_str,
@@ -98,22 +102,23 @@ class JobRunner:
                     ),
                 ):
                     trace_collector.collect(event)
+                    # Collect text from final response events
+                    if event.is_final_response() and event.llm_response is not None:
+                        content = event.llm_response.content
+                        if content and content.parts:
+                            for part in content.parts:
+                                if hasattr(part, 'text') and part.text:
+                                    final_texts.append(part.text)
             except Exception as e:
                 log.warning("agent_pipeline_exception", job_id=job_id_str, error=str(e)[:200])
-                # Formatter schema validation failed (e.g., high temp).
-                # tool_agent already ran and saved intermediate state; fall back to Path 2.
 
-            # ── Path 1: Read structured output from session state ──────
-            session = await self.session_service.get_session(
-                app_name="pelgo",
-                user_id=candidate_id_str,
-                session_id=job_id_str,
-            )
-            final_text = session.state.get("final_output") if session else None
-
+            # ── Parse structured output from agent's final text ──────
             parsed = None
-            if final_text is not None:
-                parsed = self._parse_text_as_json(final_text)
+            for text in final_texts:
+                candidate = self._parse_text_as_json(text)
+                if candidate is not None:
+                    parsed = candidate
+                    break
 
             if parsed is not None:
                 output = AgentOutput(**parsed.model_dump())
@@ -122,7 +127,7 @@ class JobRunner:
                 # ── Low-confidence guard ──────────────────────────────
                 if output.confidence == "low":
                     output = self._apply_low_confidence_guard(
-                        output, session.state if session else {},
+                        output, {},  # session_state no longer needed
                         trace_collector,
                     )
 
@@ -135,7 +140,7 @@ class JobRunner:
                     elapsed_ms=trace_collector.elapsed_ms,
                 )
                 log.info(
-                    "job_runner_complete_path1",
+                    "job_runner_complete",
                     job_id=job_id_str,
                     score=output.overall_score,
                     confidence=output.confidence,
@@ -145,10 +150,22 @@ class JobRunner:
                 )
                 return output
 
-            # ── Path 2: Fallback reconstruction from intermediate state ──
+            # ── Fallback: reconstruct from intermediate tool state ──
+            # Read tool responses from temp: state keys
+            session = await self.session_service.get_session(
+                app_name="pelgo",
+                user_id=candidate_id_str,
+                session_id=job_id_str,
+            )
             state = session.state if session else {}
-            score = state.get("score", {})
-            gap_skills = state.get("gap_skills", [])
+
+            # Extract intermediate results from temp: state keys
+            score = state.get("temp:score_candidate_against_requirements_response", {})
+            if not score:
+                score = state.get("score", {})
+            gap_data = state.get("temp:prioritise_skill_gaps_response", {})
+            gap_skills = gap_data.get("prioritized_gaps", []) if isinstance(gap_data, dict) else state.get("gap_skills", [])
+
             score_dict = score if isinstance(score, dict) else {}
 
             output_data = {
@@ -159,21 +176,20 @@ class JobRunner:
                     "skills": 0, "experience": 0, "seniority_fit": 0,
                 }),
                 "matched_skills": score_dict.get("matched_skills", []),
-                "gap_skills": gap_skills,
+                "gap_skills": gap_skills if isinstance(gap_skills, list) else [],
                 "reasoning": (
                     f"Candidate scored {score_dict.get('overall_score', 0)} "
                     f"with {score_dict.get('confidence', 'low')} confidence. "
                     f"Agent used fallback reconstruction — results may be conservative."
                 ),
                 "learning_plan": await self._build_fallback_learning_plan(
-                    state.get("prioritized_gaps", [{"skill": s} for s in gap_skills[:5]]),
-                    gap_skills,
+                    gap_skills if isinstance(gap_skills, list) else [{"skill": "General"}],
+                    [g.get("skill", g) if isinstance(g, dict) else g for g in (gap_skills if isinstance(gap_skills, list) else [])[:5]],
                 ),
             }
 
             validated_output = AgentOutput(**output_data)
 
-            # Low-confidence guard on fallback too
             # Low-confidence guard on fallback too
             if validated_output.confidence == "low":
                 validated_output.overall_score = max(0, validated_output.overall_score - 15)
@@ -192,7 +208,7 @@ class JobRunner:
                 elapsed_ms=trace_collector.elapsed_ms,
             )
             log.info(
-                "job_runner_complete_path2",
+                "job_runner_complete_fallback",
                 job_id=job_id_str,
                 score=validated_output.overall_score,
                 confidence=validated_output.confidence,

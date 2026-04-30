@@ -1,6 +1,19 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 from typing import Literal, Optional
 from uuid import uuid4
+
+
+class ResumeProfile(BaseModel):
+    """Structured profile extracted from a resume (PDF/text)."""
+    name: str = ""
+    email: str = ""
+    skills: list[str] = Field(default_factory=list)
+    years_experience: int = Field(ge=0, default=0)
+    seniority: Literal["junior", "mid", "senior", "lead"] = "mid"
+    domain: str = ""
+    education: list[str] = Field(default_factory=list)
+    certifications: list[str] = Field(default_factory=list)
+    summary: str = ""
 
 
 # ── Input schemas ──
