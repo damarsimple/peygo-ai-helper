@@ -102,7 +102,7 @@ async def score_candidate_against_requirements(
         payload = create_structured_request(
             messages=[{"role": "user", "content": prompt}],
             schema=schema,
-            temperature=0.6,
+            temperature=1
         )
         response = await client.chat.completions.create(**payload)
         llm_result = parse_structured_response(response)

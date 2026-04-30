@@ -58,7 +58,7 @@ def get_llm_client():
                 api_base = api_base.rstrip("/") + "/v1"
             # Set 21k output tokens (leaving 189k for input in 210k context)
             if "max_tokens" not in kwargs:
-                kwargs["max_tokens"] = 21000
+                kwargs["max_tokens"] = 190000
             return await litellm.acompletion(
                 api_key=self.api_key,
                 api_base=api_base,
@@ -132,7 +132,7 @@ __all__ = [
 def create_structured_request(
     messages: list[dict],
     schema: dict,
-    temperature: float = 0.1,
+    temperature: float = 0.6,
 ) -> dict:
     """Build a chat.completions payload with json_schema response format.
 
@@ -149,7 +149,9 @@ def create_structured_request(
         "messages": messages,
         "temperature": temperature,
         "response_format": {
-            "type": "json_schema",
+            "type": "json_object",
+            "schema": schema,
+            
             "json_schema": {
                 "name": "output",
                 "strict_json_schema": True,
