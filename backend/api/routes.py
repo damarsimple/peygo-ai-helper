@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from uuid import uuid4
 import json
-from backend.schemas import CreateCandidateRequest, CreateMatchesRequest
+from backend.schemas import CreateCandidateRequest, CreateMatchesRequest, ResumeProfile
 import backend.db.engine
 import structlog
 
@@ -67,7 +67,7 @@ async def ingest_candidate_pdf(file: UploadFile = File(...)):
             _os.unlink(tmp_path)
 
     # Extract structured data from PDF text using LLM
-    from backend.tools.llm_utils import resolve_model, get_openai_client, extract_json_from_response
+    from backend.tools.llm_utils import get_openai_client, build_json_schema, create_structured_request, parse_structured_response
 
     prompt = f"""Extract the candidate's COMPLETE profile from this resume text.
 CRITICAL: Extract ALL skills mentioned, including:
@@ -75,52 +75,41 @@ CRITICAL: Extract ALL skills mentioned, including:
 - Hardware skills (Arduino, Raspberry Pi, I2C, MAVLink, UAV Systems, IoT)
 - Frameworks, tools, databases, platforms
 
-Return ONLY a JSON object:
-{{
-  "name": "Full Name",
-  "email": "email@example.com",
-  "skills": ["skill1", "skill2", "C/C++", "Arduino", "I2C"],
-  "years_experience": 3,
-  "seniority": "mid",
-  "domain": "domain_name",
-  "education": ["Degree from University"],
-  "certifications": ["Cert Name"],
-  "summary": "Brief professional summary"
-}}
-
 Resume text:
 {full_text[:6000]}
 """
 
     try:
         client = get_openai_client()
-        response = await client.chat.completions.create(
-            model=resolve_model(),
+        schema = build_json_schema(ResumeProfile)
+        payload = create_structured_request(
             messages=[{"role": "user", "content": prompt}],
+            schema=schema,
             temperature=0.1,
-            response_format={"type": "json_object"},
         )
-        raw = extract_json_from_response(response.choices[0].message.content)
-        profile_data = json.loads(raw)
+        response = await client.chat.completions.create(**payload)
+        extracted = parse_structured_response(response)
+        profile = ResumeProfile.model_validate(extracted)
     except Exception as e:
+        log.error("resume_parsing_failed", error=str(e))
         raise HTTPException(400, f"Resume parsing failed: {str(e)}")
 
     log.info(
         "candidate_pdf_ingested",
         filename=file.filename,
-        skills=len(profile_data.get("skills", [])),
+        skills=len(profile.skills),
     )
 
     return await _create_candidate_from_data(
-        name=profile_data.get("name", "Candidate"),
-        email=profile_data.get("email", ""),
-        skills=profile_data.get("skills", []),
-        years_experience=profile_data.get("years_experience", 0),
-        seniority=profile_data.get("seniority", "mid"),
-        domain=profile_data.get("domain", ""),
-        education=profile_data.get("education", []),
-        certifications=profile_data.get("certifications", []),
-        summary=profile_data.get("summary", ""),
+        name=profile.name or "Candidate",
+        email=profile.email,
+        skills=profile.skills,
+        years_experience=profile.years_experience,
+        seniority=profile.seniority,
+        domain=profile.domain,
+        education=profile.education,
+        certifications=profile.certifications,
+        summary=profile.summary,
         raw_text=full_text,
     )
 
