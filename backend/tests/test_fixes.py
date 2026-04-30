@@ -283,6 +283,11 @@ class TestJobRunnerCallbackWiring:
         mock_runner.agent = mock_agent
         mock_session_service = MagicMock()
         mock_db_pool = MagicMock()
+        # Ensure no consistency cache hit
+        mock_conn = AsyncMock()
+        mock_conn.fetchrow = AsyncMock(return_value=None)
+        mock_db_pool.acquire.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_db_pool.acquire.return_value.__aexit__ = AsyncMock(return_value=None)
 
         from backend.worker.job_runner import JobRunner
 

@@ -109,8 +109,7 @@ def before_agent_callback(callback_context: CallbackContext) -> None:
     if cp is not None:
         callback_context.state["candidate_profile"] = cp
     raw_text = job_data.get("raw_resume_text", "")
-    if raw_text:
-        callback_context.state["raw_resume_text"] = raw_text
+    callback_context.state["raw_resume_text"] = raw_text  # Always set, even if empty
     job_id = job_data.get("job_id")
     if job_id is not None:
         callback_context.state["job_id"] = job_id

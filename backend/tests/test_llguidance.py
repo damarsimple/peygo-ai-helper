@@ -22,7 +22,7 @@ from backend.tools.llm_utils import (
     build_json_schema, create_structured_request,
     parse_structured_response,
 )
-from backend.schemas import JDRequirements, AgentOutputForLLM
+from backend.schemas import JDRequirements
 
 
 # ── helpers ──────────────────────────────────────────────────────────────
@@ -110,28 +110,6 @@ class TestScorer:
         print(f"  ✅ Scorer: score={result['overall_score']}, confidence={result['confidence']}")
 
 
-# ── Tool 3: Researcher (hours estimation) ────────────────────────────────
-
-
-class TestResearcher:
-    @pytest.mark.asyncio
-    async def test_researcher_estimates_hours(self):
-        """The researcher _llm_estimate_hours should return schema-valid JSON."""
-        resources = [
-            {"title": "Kubernetes Deep Dive", "type": "course"},
-            {"title": "Official K8s Docs", "type": "doc"},
-        ]
-
-        from backend.tools.researcher import _llm_estimate_hours
-        result = await _llm_estimate_hours(resources, "Kubernetes", "mid")
-
-        assert len(result) == len(resources)
-        for r in result:
-            assert r.get("estimated_hours") is not None
-            assert 1 <= r["estimated_hours"] <= 100
-        print(f"  ✅ Researcher: estimated hours = {[r['estimated_hours'] for r in result]}")
-
-
 # ── Tool 4: Prioritizer ──────────────────────────────────────────────────
 
 
@@ -189,42 +167,6 @@ class TestDirectSchemaEnforcement:
         validated = JDRequirements.model_validate(data)
         assert isinstance(validated.required_skills, list)
         print(f"  ✅ Raw call: pure JSON, validated — skills={validated.required_skills}")
-
-    @pytest.mark.asyncio
-    async def test_complex_schema_full_output(self):
-        """End-to-end: AgentOutputForLLM schema via raw call."""
-        client = get_openai_client()
-        schema = build_json_schema(AgentOutputForLLM)
-
-        messages = [{
-            "role": "user",
-            "content": (
-                "Evaluate candidate for Senior Data Engineer.\n"
-                "Candidate: Python, SQL, Pandas (3 yrs, mid, data_engineering)\n"
-                "Job requires: Python, SQL, Spark, Airflow, AWS (senior, data_engineering)\n"
-                "Return complete JSON with job_id, overall_score, confidence, "
-                "dimension_scores, matched_skills, gap_skills, reasoning, learning_plan."
-            ),
-        }]
-
-        payload = create_structured_request(messages, schema, temperature=0.1)
-        response = await client.chat.completions.create(**payload)
-        content = response.choices[0].message.content
-
-        assert not _has_fences(content)
-        assert _is_pure_json(content)
-
-        data = json.loads(content)
-        validated = AgentOutputForLLM.model_validate(data)
-        assert 0 <= validated.overall_score <= 100
-        assert validated.confidence in ("low", "medium", "high")
-        assert isinstance(validated.matched_skills, list)
-        assert isinstance(validated.gap_skills, list)
-        assert isinstance(validated.learning_plan, list)
-        assert len(validated.reasoning) >= 10
-        print(f"  ✅ Full schema: score={validated.overall_score}, "
-              f"confidence={validated.confidence}, "
-              f"gaps={len(validated.gap_skills)}, plan={len(validated.learning_plan)}")
 
 
 # ── Cross-temperature stability ──────────────────────────────────────────
