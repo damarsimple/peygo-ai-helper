@@ -259,6 +259,23 @@ is strict about JSON schema and includes instructions for extracting ALL skills 
 "C/C++", "Arduino", "I2C", etc.). Edge cases (tables, multi-column layouts) may produce
 incomplete extractions. For production, an OCR-enhanced pipeline would be more robust.
 
+### Candidate Profile Schema
+
+The agent requires these fields to produce a meaningful score:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `skills` | `list[str]` | Technical skills (languages, frameworks, tools) |
+| `years_experience` | `int` | Total years of professional engineering experience |
+| `seniority` | `junior\|mid\|senior\|lead` | Mapped from years + explicit title |
+| `domain` | `str` | Primary discipline: backend, frontend, fullstack, embedded, etc. |
+| `education` | `list[str]` | Degrees and institutions |
+| `certifications` | `list[str]` | Professional certifications |
+| `summary` | `str` | 1-2 sentence background summary |
+| `raw_text` | `str` | Raw resume text for semantic skill matching |
+
+These fields are extracted from PDF via LLM or accepted via JSON input.
+
 ## API Endpoints
 
 | Method | Endpoint | Description |
