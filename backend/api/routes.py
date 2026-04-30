@@ -137,7 +137,7 @@ RESUME TEXT:
         payload = create_structured_request(
             messages=[{"role": "user", "content": prompt}],
             schema=schema,
-            temperature=0.6,   # Low — structured extraction, not creative generation
+            temperature=1   # Low — structured extraction, not creative generation
         )
         response = await client.chat.completions.create(**payload)
         raw_content = response.choices[0].message.content
