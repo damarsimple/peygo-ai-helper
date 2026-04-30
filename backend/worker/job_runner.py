@@ -45,32 +45,6 @@ class JobRunner:
 
         log.info("job_runner_start", job_id=job_id_str, candidate_id=candidate_id_str)
 
-        # ── Consistency Cache ───────────────────────────────────────────
-        # If an identical job was already completed for this candidate,
-        # reuse the result to ensure 100% consistency and save tokens.
-        async with self.db_pool.acquire() as conn:
-            existing = await conn.fetchrow(
-                """SELECT result, agent_trace FROM match_jobs
-                   WHERE candidate_id = $1 AND jd_input = $2
-                     AND status = 'completed'
-                     AND id != $3
-                   ORDER BY updated_at DESC LIMIT 1""",
-                candidate_id_str, jd_input, job_id_str
-            )
-            if existing:
-                log.info("job_runner_cache_hit", job_id=job_id_str, reused_from=candidate_id_str)
-                return AgentOutput(
-                    job_id=job_id_str,
-                    overall_score=existing["result"]["overall_score"],
-                    confidence=existing["result"]["confidence"],
-                    reasoning=existing["result"]["reasoning"] + " (Reused from previous identical run)",
-                    matched_skills=existing["result"]["matched_skills"],
-                    gap_skills=existing["result"]["gap_skills"],
-                    dimension_scores=DimensionScores(**existing["result"]["dimension_scores"]),
-                    learning_plan=[LearningPlanItem(**lp) for lp in existing["result"]["learning_plan"]],
-                    agent_trace=AgentTrace(**existing["agent_trace"])
-                )
-
         # Typed per-job callback context (replaces bare dict).
         cb._cb_state = cb.JobCallbackContext(
             job_data={
@@ -91,6 +65,7 @@ class JobRunner:
             # With a single Agent (no SequentialAgent), we parse the final
             # response directly from the last text event.
             final_texts = []
+            event_debug = []
 
             try:
                 async for event in self.runner.run_async(
@@ -102,13 +77,24 @@ class JobRunner:
                     ),
                 ):
                     trace_collector.collect(event)
+                    # Debug: log every event
+                    event_debug.append({
+                        "author": getattr(event, "author", None),
+                        "is_final": event.is_final_response(),
+                        "has_content": event.content is not None,
+                        "parts_count": len(event.content.parts) if event.content and event.content.parts else 0,
+                    })
                     # Collect text from final response events
-                    if event.is_final_response() and event.llm_response is not None:
-                        content = event.llm_response.content
-                        if content and content.parts:
-                            for part in content.parts:
+                    if event.is_final_response() and event.content is not None:
+                        if event.content.parts:
+                            for part in event.content.parts:
                                 if hasattr(part, 'text') and part.text:
                                     final_texts.append(part.text)
+                log.info(
+                    "job_runner_events", job_id=job_id_str,
+                    total_events=len(event_debug), collected_texts=len(final_texts),
+                    events=event_debug
+                )
             except Exception as e:
                 log.warning("agent_pipeline_exception", job_id=job_id_str, error=str(e)[:200])
 
@@ -157,7 +143,17 @@ class JobRunner:
                 user_id=candidate_id_str,
                 session_id=job_id_str,
             )
-            state = session.state if session else {}
+            raw_state = session.state if session else None
+            # session.state can be a string (JSONB from asyncpg) or a dict
+            if isinstance(raw_state, str):
+                try:
+                    state = json.loads(raw_state)
+                except (json.JSONDecodeError, TypeError):
+                    state = {}
+            elif isinstance(raw_state, dict):
+                state = raw_state
+            else:
+                state = {}
 
             # Extract intermediate results from temp: state keys
             score = state.get("temp:score_candidate_against_requirements_response", {})
@@ -328,10 +324,14 @@ class JobRunner:
             )
             if not row:
                 raise ValueError(f"Candidate {candidate_id} not found")
-            profile_data = row["structured_profile"]
-            if isinstance(profile_data, str):
-                profile_data = json.loads(profile_data)
+            profile_data = self._parse_jsonb(row["structured_profile"])
             candidate = CandidateProfile.model_validate(profile_data)
-            # Attach raw_text to candidate object for access in job_runner
             candidate.raw_text = row["raw_text"] or ""
             return candidate
+
+    @staticmethod
+    def _parse_jsonb(value):
+        """Parse JSONB value from asyncpg — may be str or already dict."""
+        if isinstance(value, str):
+            return json.loads(value)
+        return value

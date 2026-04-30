@@ -4,6 +4,7 @@ import structlog
 import asyncpg
 import os
 import signal
+import time
 import uuid
 from google.adk.runners import Runner
 from google.adk.sessions import DatabaseSessionService
@@ -37,6 +38,30 @@ structlog.configure(
 WORKER_ID = os.getenv("WORKER_ID", str(uuid.uuid4())[:8])
 log = structlog.get_logger().bind(worker_id=WORKER_ID)
 
+# ── Orphan recovery thresholds ───────────────────────────────────────────
+ORPHAN_RECOVERY_INTERVAL = 60  # seconds between cleanup sweeps
+JOB_STALE_THRESHOLD = 360      # seconds (6 min) — reset jobs stuck longer than this
+
+
+async def _orphan_recovery(db_pool, stale_threshold: int, worker_id: str) -> int:
+    """Reset jobs stuck in 'processing' for longer than stale_threshold seconds.
+
+    Returns the number of jobs recovered.
+    """
+    async with db_pool.acquire() as conn:
+        result = await conn.fetch(f"""
+            UPDATE match_jobs
+               SET status = 'pending',
+                   worker_id = NULL,
+                   processing_started_at = NULL,
+                   error_detail = 'Worker died — recovered by orphan sweep',
+                   updated_at = NOW()
+               WHERE status = 'processing'
+                 AND processing_started_at < NOW() - INTERVAL '{stale_threshold} seconds'
+               RETURNING id
+        """)
+    return len(result)
+
 
 async def worker_loop():
     """Out-of-process worker. Scales to 2+ workers without duplicates.
@@ -46,6 +71,7 @@ async def worker_loop():
     - Race-condition-safe job claiming via FOR UPDATE SKIP LOCKED
     - 3-retry dead-letter with partial agent_trace
     - Per-worker identity in all log lines
+    - Orphan recovery: resets jobs abandoned by crashed workers
     """
     db_url = os.getenv("DATABASE_URL", "postgresql://pelgo:pelgo@postgres:5432/pelgo")
     adk_db_url = os.getenv("ADK_DATABASE_URL", "postgresql+asyncpg://pelgo:pelgo@postgres:5432/pelgo_adk")
@@ -75,9 +101,26 @@ async def worker_loop():
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, _signal_handler)
 
-    log.info("worker_started", db_url=db_url.replace("://pelgo:pelgo@", "://***@"))
+    log.info(
+        "worker_started",
+        db_url=db_url.replace("://pelgo:pelgo@", "://***@"),
+        orphan_recovery_interval=ORPHAN_RECOVERY_INTERVAL,
+        job_stale_threshold=JOB_STALE_THRESHOLD,
+    )
+
+    # Track last orphan cleanup
+    last_cleanup = time.monotonic()
 
     while not shutdown_event.is_set():
+        # ── Orphan recovery sweep ───────────────────────────────────
+        now = time.monotonic()
+        if now - last_cleanup >= ORPHAN_RECOVERY_INTERVAL:
+            recovered = await _orphan_recovery(db_pool, JOB_STALE_THRESHOLD, WORKER_ID)
+            if recovered:
+                log.info("orphan_recovery", recovered=recovered)
+            last_cleanup = now
+
+        # ── Claim a pending job (with worker_id tracking) ─────────
         async with db_pool.acquire() as conn:
             row = await conn.fetchrow(
                 """WITH candidate_job AS (
@@ -91,6 +134,8 @@ async def worker_loop():
                    )
                    UPDATE match_jobs
                    SET status = 'processing',
+                       worker_id = $2,
+                       processing_started_at = NOW(),
                        updated_at = NOW(),
                        attempt_count = attempt_count + 1
                    FROM candidate_job
@@ -99,11 +144,10 @@ async def worker_loop():
                              match_jobs.candidate_id,
                              match_jobs.jd_input,
                              match_jobs.attempt_count""",
-                max_retries
+                max_retries, WORKER_ID
             )
 
         if not row:
-            # Wait with shutdown awareness
             try:
                 await asyncio.wait_for(shutdown_event.wait(), timeout=poll_interval)
             except asyncio.TimeoutError:
@@ -195,6 +239,9 @@ async def worker_loop():
                     )
 
         except Exception as e:
+            import traceback
+            tb = traceback.format_exc()
+            log.error("job_exception_traceback", job_id=job_id, traceback=tb)
             error_msg = str(e)
 
             partial_trace = {

@@ -6,7 +6,7 @@ from uuid import uuid4
 class ResumeProfile(BaseModel):
     """Structured profile extracted from a resume (PDF/text)."""
     name: str = ""
-    email: str = ""
+    email: str | None = None
     skills: list[str] = Field(default_factory=list)
     years_experience: int = Field(ge=0, default=0)
     seniority: Literal["junior", "mid", "senior", "lead"] = "mid"

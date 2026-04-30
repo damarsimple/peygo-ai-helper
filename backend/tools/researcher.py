@@ -135,21 +135,34 @@ async def _llm_estimate_hours(resources: list[dict], skill: str, seniority: str)
     if not resources:
         return resources
 
-    prompt = f"""Estimate the time needed (in hours) to complete each learning resource for a {seniority}-level learner studying {skill}.
+    # Build resource summary list outside the f-string to avoid f-string brace-escaping pitfalls
+    res_summary = [{"title": r["title"], "type": r["type"]} for r in resources]
+    res_json = json.dumps(res_summary, indent=2)
 
-Resources:
-{json.dumps([{"title": r["title"], "type": r["type"]} for r in resources], indent=2)}
+    prompt = f"""Estimate realistic self-study hours for a {seniority} engineer to reach
+    job-ready proficiency in each resource below. Assume ~2 hours/day study pace.
 
-Return ONLY a JSON object with an "hours" key containing estimated hours (integers between 1 and 100) in the same order:
-{{"hours": [12, 25, 8]}}
+    Skill being learned: {skill}
+    Learner level: {seniority}
 
-Guidelines:
-- "doc" (documentation/tutorial): 2-8 hours
-- "course" (online course): 10-40 hours  
-- "cert" (certification): 20-80 hours
-- "project" (hands-on project): 15-50 hours
-- Adjust for seniority: junior needs more time, lead needs less
-"""
+    Resources:
+    {res_json}
+
+    ESTIMATION GUIDELINES:
+    - "doc": official docs or short tutorials → 2–10 hours
+    - "course": structured online course → 8–40 hours  
+    - "cert": certification prep → 20–80 hours
+    - "project": build-from-scratch project → 10–50 hours
+    - Adjust DOWN for senior/lead (faster ramp-up, skip basics).
+    - Adjust UP for complex skills (distributed systems, ML, security).
+    - Adjust DOWN for simple tooling (linters, formatters, CLI tools).
+
+    Return ONLY — no markdown, no explanation:
+    {{"hours": [<int>, <int>, ...]}}
+
+    Return exactly {len(resources)} integers in the same order as the input list.
+    """
+
     try:
         client = get_openai_client()
         schema = {
@@ -166,7 +179,7 @@ Guidelines:
         payload = create_structured_request(
             messages=[{"role": "user", "content": prompt}],
             schema=schema,
-            temperature=0.1,
+            temperature=0.6,
         )
         response = await client.chat.completions.create(**payload)
         estimates = parse_structured_response(response)
@@ -197,23 +210,39 @@ def _classify_resource_type(title: str) -> str:
 
 async def _generate_placeholder_resources(skill_name: str, seniority_context: str) -> list[dict]:
     """Suggests curated resources from known high-quality platforms as a fallback."""
-    prompt = f"""Suggest 3 high-quality, REAL-WORLD learning resources for: {skill_name} (Level: {seniority_context}).
-Focus on platforms like Coursera, Udemy, edX, Pluralsight, or official documentation.
+    prompt = f"""Suggest 3 high-quality learning resources for: {skill_name} (Level: {seniority_context}).
 
-Return ONLY a JSON object with a "resources" key:
-{{
-  "resources": [
+    IMPORTANT — URL RULES:
+    - Only use URLs from these known-good domains:
+    coursera.org, udemy.com, edx.org, pluralsight.com, linkedin.com/learning,
+    developer.mozilla.org, docs.python.org, kubernetes.io/docs, docs.docker.com,
+    learn.microsoft.com, cloud.google.com/learn, aws.amazon.com/training,
+    roadmap.sh, freecodecamp.org, missing.csail.mit.edu
+    - If you are not confident in the exact URL path, use the domain root
+    (e.g. "https://coursera.org") rather than inventing a path.
+    - Do NOT fabricate course slugs, IDs, or deep paths.
+
+    RESOURCE SELECTION RULES:
+    - Prefer free or widely accessible resources over paywalled ones.
+    - Prefer official documentation for infrastructure/platform skills
+    (Kubernetes, Docker, AWS, GCP).
+    - Prefer structured courses for language or framework skills
+    (Python, React, SQL).
+    - At least 1 of the 3 resources should be free.
+
+    Return ONLY this JSON — no markdown:
     {{
-      "title": "Clear Course or Doc Title",
-      "url": "https://platform.com/specific-course-path",
-      "estimated_hours": 12,
-      "type": "course",
-      "relevance_score": 0.95
+    "resources": [
+        {{
+        "title": "Descriptive course or doc title",
+        "url": "https://known-domain.com/path-if-confident",
+        "estimated_hours": 12,
+        "type": "course|project|cert|doc",
+        "relevance_score": 0.95
+        }}
+    ]
     }}
-  ]
-}}
-Types: course, project, cert, doc.
-"""
+    """
     client = get_openai_client()
     schema = {
         "type": "object",
