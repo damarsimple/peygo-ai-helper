@@ -1,13 +1,12 @@
-"""Database seed script: ensures schema exists and seeds sample data.
+"""Database seed script: seeds sample data.
 
 Run standalone:
     python -m backend.db.seed
 
 Or via docker-compose (auto-run at container boot).
 
-Note: Schema is also managed by Alembic migrations. The CREATE TABLE IF NOT EXISTS
-statements here are a safety net for fresh databases where Alembic hasn't been run.
-In production, use `alembic upgrade head` as the canonical migration path.
+Note: Schema is managed by Alembic migrations. This script only inserts
+sample data after migrations have been applied.
 """
 import asyncpg
 import json
@@ -16,14 +15,16 @@ import os
 
 
 async def ensure_schema(conn):
-    """Create tables if they don't exist (safety net for fresh databases)."""
+    """Create tables if they don't exist (safety net for fresh databases).
+
+    Minimal schema - alembic migrations add additional columns.
+    """
     await conn.execute("""
         CREATE TABLE IF NOT EXISTS candidates (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             name TEXT NOT NULL DEFAULT 'Candidate',
             email TEXT UNIQUE,
             structured_profile JSONB NOT NULL,
-            raw_text TEXT DEFAULT '',
             created_at TIMESTAMPTZ DEFAULT NOW()
         );
     """)
@@ -34,8 +35,6 @@ async def ensure_schema(conn):
             jd_input TEXT NOT NULL,
             status TEXT NOT NULL DEFAULT 'pending'
                 CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
-            worker_id TEXT,
-            processing_started_at TIMESTAMPTZ,
             result JSONB,
             agent_trace JSONB,
             error_detail TEXT,
