@@ -56,42 +56,74 @@ async def extract_jd_requirements(
 
     # Try multiple prompts if validation fails
     prompts = [
-        # Standard prompt
-        f"""Extract structured job requirements from the following job description.
-Return ONLY a JSON object with these fields:
-{{
-  "required_skills": ["skill1", "skill2"],
-  "nice_to_have_skills": ["skill3"],
-  "seniority_level": "junior|mid|senior|lead",
-  "domain": "domain_name",
-  "responsibilities": ["responsibility1"]
-}}
+        # Attempt 1 — Full structured extraction with examples
+        f"""You are a technical recruiter parsing a job description.
+    Extract structured requirements and return ONLY a valid JSON object.
 
-Job description:
-{text[:8000]}
-""",
-        # Stricter prompt — enumerate types
-        f"""Extract job requirements. Return a JSON object:
-{{
-  "required_skills": ["skill1", "skill2"],
-  "nice_to_have_skills": ["skill3"],
-  "seniority_level": "mid",
-  "domain": "software_engineering",
-  "responsibilities": ["design", "implement"]
-}}
+    EXTRACTION RULES:
+    - required_skills: Hard requirements only. Normalise aliases
+    (e.g. "C/C++" → ["C", "C++"], "Node" → "Node.js").
+    Include languages, frameworks, tools, platforms, and methodologies.
+    - nice_to_have_skills: Explicitly optional or "bonus" skills only.
+    Do NOT include skills from required_skills here.
+    - seniority_level: Map experience years to one of: junior (<2yr), mid (2–5yr),
+    senior (5–9yr), lead (9+yr). If not stated, infer from tone and responsibilities.
+    - domain: Single slug, e.g. "backend", "frontend", "fullstack", "embedded",
+    "data_engineering", "devops", "mobile", "ml_ai", "security".
+    - responsibilities: Max 6 items. Use imperative verb phrases ("Design APIs",
+    not "The candidate will design APIs").
 
-Job description:
-{text[:8000]}
-""",
-        # Fallback — minimal prompt
-        f"""From this text, list the required skills, optional skills, seniority level,
-domain, and responsibilities as JSON:
+    Return ONLY this JSON — no markdown, no explanation:
+    {{
+    "required_skills": ["skill1", "skill2"],
+    "nice_to_have_skills": ["skill3"],
+    "seniority_level": "junior|mid|senior|lead",
+    "domain": "domain_slug",
+    "responsibilities": ["Verb phrase 1", "Verb phrase 2"]
+    }}
 
-{text[:4000]}
+    JOB DESCRIPTION:
+    {text[:8000]}
+    """,
 
-JSON keys: required_skills (array), nice_to_have_skills (array),
-seniority_level (string), domain (string), responsibilities (array)
-""",
+        # Attempt 2 — Relaxed: flatten everything into required, skip nice-to-have
+        # Used when attempt 1 fails validation (e.g. model put skills in wrong bucket)
+        f"""Parse this job posting. If you cannot separate required vs optional skills,
+    put ALL skills in required_skills and leave nice_to_have_skills empty.
+
+    Allowed seniority_level values: "junior", "mid", "senior", "lead" — pick the closest.
+    Allowed domain values: any single lowercase slug describing the engineering domain.
+
+    Return ONLY:
+    {{
+    "required_skills": ["skill1", "skill2"],
+    "nice_to_have_skills": [],
+    "seniority_level": "mid",
+    "domain": "backend",
+    "responsibilities": ["Responsibility 1"]
+    }}
+
+    JOB DESCRIPTION:
+    {text[:8000]}
+    """,
+
+        # Attempt 3 — Ultra-minimal: short text window, no schema pressure
+        # Last resort when the text is noisy (scraping artifacts, login walls, etc.)
+        f"""Extract only the most important technical skills and job level from this text.
+    The text may be noisy or incomplete — do your best.
+
+    Return ONLY valid JSON with these exact keys. Use empty arrays if unsure:
+    {{
+    "required_skills": [],
+    "nice_to_have_skills": [],
+    "seniority_level": "mid",
+    "domain": "unknown",
+    "responsibilities": []
+    }}
+
+    TEXT (first 5000 chars):
+    {text[:5000]}
+    """,
     ]
 
     for attempt, prompt in enumerate(prompts, 1):
@@ -100,7 +132,7 @@ seniority_level (string), domain (string), responsibilities (array)
             payload = create_structured_request(
                 messages=[{"role": "user", "content": prompt}],
                 schema=schema,
-                temperature=0.1,
+                temperature=0.6,
             )
             response = await client.chat.completions.create(**payload)
             extracted = parse_structured_response(response)

@@ -50,6 +50,7 @@ class JobRunner:
             job_data={
                 "candidate_profile": candidate.model_dump(),
                 "raw_resume_text": candidate.raw_text if hasattr(candidate, 'raw_text') else "",
+                "job_description": jd_input,
                 "job_id": job_id_str,
             }
         )
@@ -68,12 +69,30 @@ class JobRunner:
             event_debug = []
 
             try:
+                # Pass ALL data directly in the message so the agent can see it.
+                # The {key} templating in instruction may not work with Agent class.
+                import json as json_mod
+                candidate_dict = candidate.model_dump()
+                message = f"""Here is the complete data for analysis:
+
+CANDIDATE PROFILE (JSON):
+{json_mod.dumps(candidate_dict, indent=2)}
+
+RAW RESUME TEXT:
+{candidate.raw_text if candidate.raw_text else "Not provided"}
+
+JOB DESCRIPTION:
+{jd_input}
+
+Please analyze the candidate against this job description using the tools available.
+"""
+                
                 async for event in self.runner.run_async(
                     user_id=candidate_id_str,
                     session_id=job_id_str,
                     new_message=types.Content(
                         role="user",
-                        parts=[types.Part(text=f"Analyze this job for the candidate:\n\n{jd_input}")]
+                        parts=[types.Part(text=message)]
                     ),
                 ):
                     trace_collector.collect(event)
@@ -84,27 +103,38 @@ class JobRunner:
                         "has_content": event.content is not None,
                         "parts_count": len(event.content.parts) if event.content and event.content.parts else 0,
                     })
-                    # Collect text from final response events
-                    if event.is_final_response() and event.content is not None:
-                        if event.content.parts:
-                            for part in event.content.parts:
-                                if hasattr(part, 'text') and part.text:
-                                    final_texts.append(part.text)
+                    # Collect text from ALL parts (not just final), for debugging
+                    if event.content is not None and event.content.parts:
+                        for part in event.content.parts:
+                            if hasattr(part, 'text') and part.text:
+                                final_texts.append(part.text)
                 log.info(
                     "job_runner_events", job_id=job_id_str,
                     total_events=len(event_debug), collected_texts=len(final_texts),
-                    events=event_debug
+                    events=event_debug,
+                    last_text_head=final_texts[-1][:200] if final_texts else "none",
                 )
             except Exception as e:
                 log.warning("agent_pipeline_exception", job_id=job_id_str, error=str(e)[:200])
 
             # ── Parse structured output from agent's final text ──────
             parsed = None
-            for text in final_texts:
-                candidate = self._parse_text_as_json(text)
-                if candidate is not None:
-                    parsed = candidate
-                    break
+            for i, text in enumerate(final_texts):
+                try:
+                    candidate = self._parse_text_as_json(text)
+                    if candidate is not None:
+                        parsed = candidate
+                        log.info("parse_ok", job_id=job_id_str, text_index=i, text_len=len(text))
+                        break
+                except Exception as e:
+                    log.warning("parse_exception", job_id=job_id_str, text_index=i, error=str(e))
+
+            if parsed is None:
+                log.warning(
+                    "parse_all_failed", job_id=job_id_str,
+                    text_count=len(final_texts),
+                    last_text_head=final_texts[-1][:500] if final_texts else "none",
+                )
 
             if parsed is not None:
                 output = AgentOutput(**parsed.model_dump())

@@ -55,35 +55,46 @@ async def score_candidate_against_requirements(
     nice_to_have = requirements.get("nice_to_have_skills", [])
 
     # Build comprehensive prompt with full context
-    prompt = f"""You are scoring a candidate against job requirements.
-Use SEMANTIC matching to determine if the candidate possesses each required skill.
+    prompt = f"""You are a technical recruiter scoring a candidate's fit against job requirements.
+    Use SEMANTIC and CONTEXTUAL matching — not just exact string comparison.
 
-CANDIDATE PROFILE:
-{json.dumps(candidate_profile, indent=2)}
+    ━━━ CANDIDATE ━━━
+    Profile:
+    {json.dumps(candidate_profile, indent=2)}
 
-RAW RESUME TEXT (use this for semantic matching):
-{raw_resume_text[:3000] if raw_resume_text else "Not provided"}
+    Resume text (authoritative — use this to find skills not listed in the profile):
+    {raw_resume_text[:3000] if raw_resume_text else "(not provided)"}
 
-JOB REQUIREMENTS:
-{json.dumps(requirements, indent=2)}
+    ━━━ JOB REQUIREMENTS ━━━
+    {json.dumps(requirements, indent=2)}
 
-SEMANTIC MATCHING RULES:
-- "Arduino", "I2C", "Raspberry Pi", "MAVLink", "UAV Systems" → matches "Hardware Interfaces", "Embedded", "Firmware"
-- "C/C++", "C++", "C" → all match each other
-- "React", "Next.js", "Vue" → matches "Frontend Development"
-- "Docker", "Kubernetes" → matches "Containerization", "DevOps"
-- "Python", "Django", "Flask" → matches "Python Development"
-- "SQL", "PostgreSQL", "MySQL" → matches "Database Management"
+    ━━━ MATCHING INSTRUCTIONS ━━━
+    1. For each skill in required_skills, determine if the candidate demonstrates it
+    in either their profile OR resume text. Consider:
+    - Direct mentions (exact or aliased, e.g. "Postgres" matches "PostgreSQL")
+    - Implied proficiency (e.g. "built REST APIs in Django" implies "REST" and "Python")
+    - Related but weaker signals (e.g. "Arduino" partially matches "Embedded Systems")
+    Only list a skill in matched_skills if you are confident the candidate has it.
+    List everything else in gap_skills.
 
-Return ONLY a JSON object:
-{{
-  "matched_skills": ["skill1", "skill2"],
-  "gap_skills": ["missing1", "missing2"],
-  "required_match_ratio": 0.75,
-  "nice_to_have_match_ratio": 0.5,
-  "reasoning": "Brief explanation of matches and gaps"
-}}
-"""
+    2. required_match_ratio = matched required skills / total required skills (float 0–1).
+    Count only skills from required_skills — do not mix in nice_to_have_skills.
+
+    3. nice_to_have_match_ratio = matched nice-to-have skills / total nice-to-have skills.
+    If nice_to_have_skills is empty, return 0.0.
+
+    4. reasoning: 2 sentences max. Sentence 1 — what the candidate matches well and why.
+    Sentence 2 — the most critical gap and its impact on the role. Be specific, not generic.
+
+    Return ONLY this JSON — no markdown, no explanation:
+    {{
+    "matched_skills": ["skill1", "skill2"],
+    "gap_skills": ["missing1", "missing2"],
+    "required_match_ratio": 0.75,
+    "nice_to_have_match_ratio": 0.5,
+    "reasoning": "Candidate demonstrates X and Y which are core to this role. The primary gap is Z, which is required for [specific responsibility]."
+    }}
+    """
 
     try:
         client = get_openai_client()
@@ -91,7 +102,7 @@ Return ONLY a JSON object:
         payload = create_structured_request(
             messages=[{"role": "user", "content": prompt}],
             schema=schema,
-            temperature=0.1,
+            temperature=0.6,
         )
         response = await client.chat.completions.create(**payload)
         llm_result = parse_structured_response(response)

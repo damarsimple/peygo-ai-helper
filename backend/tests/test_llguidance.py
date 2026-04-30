@@ -155,7 +155,7 @@ class TestDirectSchemaEnforcement:
             ),
         }]
 
-        payload = create_structured_request(messages, schema, temperature=0.1)
+        payload = create_structured_request(messages, schema, temperature=0.6)
         response = await client.chat.completions.create(**payload)
         content = response.choices[0].message.content
 

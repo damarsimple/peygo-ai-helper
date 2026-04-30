@@ -34,6 +34,8 @@ async def ensure_schema(conn):
             jd_input TEXT NOT NULL,
             status TEXT NOT NULL DEFAULT 'pending'
                 CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
+            worker_id TEXT,
+            processing_started_at TIMESTAMPTZ,
             result JSONB,
             agent_trace JSONB,
             error_detail TEXT,
@@ -61,7 +63,7 @@ async def ensure_schema(conn):
 
 
 async def insert_seed_data(conn):
-    """Insert sample candidates and job descriptions."""
+    """Insert sample candidates only. match_jobs are created via the API."""
     c1_profile = {
         "skills": ["Python", "SQL", "Pandas", "Git"],
         "years_experience": 3,
@@ -96,28 +98,9 @@ async def insert_seed_data(conn):
         json.dumps(c2_profile)
     )
 
-    jds = [
-        ("d0000000-0000-0000-0000-000000000001",
-         "https://example.com/jobs/senior-data-engineer"),
-        ("d0000000-0000-0000-0000-000000000002",
-         "Senior Data Engineer\nRequired: Python, SQL, Spark, Airflow, AWS\n"
-         "Nice to have: Kafka, Terraform\nSeniority: senior\nDomain: data_engineering"),
-        ("d0000000-0000-0000-0000-000000000003",
-         "Machine Learning Engineer\nRequired: Python, TensorFlow, PyTorch, Docker\n"
-         "Nice to have: MLflow, Kubernetes\nSeniority: mid\nDomain: machine_learning"),
-    ]
-
-    for jd_id, jd_input in jds:
-        await conn.execute(
-            """INSERT INTO match_jobs (id, candidate_id, jd_input, status)
-               VALUES ($1, 'a0000000-0000-0000-0000-000000000001', $2, 'pending')
-               ON CONFLICT DO NOTHING""",
-            jd_id, jd_input
-        )
-
 
 async def seed_database(dsn: str = None):
-    """Seed: schema creation + 2 candidates + 3 JDs (1 URL, 2 text)."""
+    """Seed: schema creation + sample candidates."""
     if dsn is None:
         dsn = os.getenv(
             "DATABASE_URL",

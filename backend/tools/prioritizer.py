@@ -38,19 +38,63 @@ async def prioritise_skill_gaps(
 
     # Try multiple prompts if validation fails
     prompts = [
-        f"""You are a career advisor. Rank these skill gaps by their impact on getting a {seniority_context} role.
-Gap skills: {json.dumps(gap_skills)}
+        # Attempt 1 — Full context with concrete scoring criteria
+        f"""You are a senior technical recruiter ranking skill gaps by their impact on
+    candidate success in a {seniority_context} role.
 
-For each skill, estimate the match gain percentage if the candidate learns it.
-Return ONLY a JSON object with a "priorities" key containing the ranked array (highest impact first):
-{{"priorities": [
-  {{"skill": "SkillName", "priority_rank": 1, "estimated_match_gain_pct": 15, "rationale": "Why this skill is most important"}}
-]}}
-""",
-        # Simpler retry prompt
-        f"""Rank these skills by importance for a {seniority_context} role: {json.dumps(gap_skills)}
-Return JSON: {{"priorities": [{{"skill": "name", "priority_rank": 1, "estimated_match_gain_pct": 10, "rationale": "reason"}}]}}
-""",
+    SKILL GAPS TO RANK:
+    {json.dumps(gap_skills)}
+
+    RANKING CRITERIA (in priority order):
+    1. Is the skill explicitly required (not just nice-to-have)?
+    2. How frequently is this skill tested in interviews for {seniority_context} roles?
+    3. How long does it typically take to reach job-ready proficiency?
+    (Skills with shorter ramp-up times → higher priority, faster score improvement)
+    4. Is the skill foundational (blocks learning other gaps) or standalone?
+
+    ESTIMATED MATCH GAIN RULES:
+    - estimated_match_gain_pct represents how much the overall match score would improve
+    if the candidate closed this single gap, assuming all other gaps remain open.
+    - Values should be realistic: typically 5–25% per skill.
+    - The sum of all estimated_match_gain_pct values MUST NOT exceed 100.
+    - Assign higher gains to foundational or high-weight required skills.
+
+    Return ONLY a JSON object — no markdown, no explanation:
+    {{
+    "priorities": [
+        {{
+        "skill": "SkillName",
+        "priority_rank": 1,
+        "estimated_match_gain_pct": 18,
+        "rationale": "Required for [specific responsibility]. Most {seniority_context} interviews test this directly. Ramp-up is ~4 weeks."
+        }}
+    ]
+    }}
+
+    Rank ALL {len(gap_skills)} skills. Highest impact first (priority_rank 1 = most important).
+    """,
+
+        # Attempt 2 — Simplified, avoids sum-constraint which may have caused JSON failure
+        f"""Rank these skill gaps by importance for a {seniority_context} engineering role.
+    Prioritise: (1) explicitly required skills, (2) frequently interviewed topics,
+    (3) foundational skills that unblock other gaps.
+
+    Gaps: {json.dumps(gap_skills)}
+
+    For estimated_match_gain_pct: assign 5–20 per skill. Total across all skills ≤ 100.
+
+    Return ONLY:
+    {{
+    "priorities": [
+        {{
+        "skill": "Name",
+        "priority_rank": 1,
+        "estimated_match_gain_pct": 15,
+        "rationale": "One sentence: why this gap matters most for this role level."
+        }}
+    ]
+    }}
+    """,
     ]
 
     for attempt, prompt in enumerate(prompts, 1):
@@ -59,7 +103,7 @@ Return JSON: {{"priorities": [{{"skill": "name", "priority_rank": 1, "estimated_
             payload = create_structured_request(
                 messages=[{"role": "user", "content": prompt}],
                 schema=schema,
-                temperature=0.1,
+                temperature=0.6,
             )
             response = await client.chat.completions.create(**payload)
             parsed = parse_structured_response(response)

@@ -95,9 +95,8 @@ def _shared_state() -> dict[str, Any]:
 def before_agent_callback(callback_context: CallbackContext) -> None:
     """Set up session state before the agent begins execution.
 
-    Populates session.state["candidate_profile"], session.state["raw_resume_text"],
-    and session.state["job_id"] so the agent's instruction template
-    and tool calls can reference them.
+    Populates session.state with job data so tools can reference them.
+    The agent receives data via the message (not session.state) for better visibility.
 
     Reads from the typed JobCallbackContext that was populated by
     JobRunner.run_job() before this run.
@@ -105,11 +104,14 @@ def before_agent_callback(callback_context: CallbackContext) -> None:
     global _cb_state
     ctx = _cb_state or JobCallbackContext()
     job_data = ctx.job_data
+    
     cp = job_data.get("candidate_profile")
     if cp is not None:
         callback_context.state["candidate_profile"] = cp
     raw_text = job_data.get("raw_resume_text", "")
     callback_context.state["raw_resume_text"] = raw_text  # Always set, even if empty
+    jd = job_data.get("job_description", "")
+    callback_context.state["job_description"] = jd  # Always set, even if empty
     job_id = job_data.get("job_id")
     if job_id is not None:
         callback_context.state["job_id"] = job_id

@@ -1,15 +1,16 @@
 """Shared LLM client utilities.
 
-Centralises model resolution and OpenAI client creation so every tool
+Centralises model resolution and LLM client creation so every tool
 uses the same logic without copy-pasting.
 
+Uses LiteLLM for consistency across all services (worker and api).
 With llguidance on vLLM (json_schema response format), responses are
 guaranteed schema-valid JSON — no fence-stripping or array-unwrapping needed.
 """
 import os
 from typing import Any
 
-import openai
+import litellm
 
 from pydantic import BaseModel
 
@@ -17,9 +18,8 @@ from pydantic import BaseModel
 def resolve_model() -> str:
     """Return the model name for tool LLM calls.
 
-    Strips the 'openai/' LiteLLM provider prefix when a custom base_url is set,
-    because the OpenAI SDK sends the model name literally to the endpoint and
-    vLLM only recognises the raw model identifier.
+    When using LiteLLM with custom base_url, use the raw model identifier
+    without the 'openai/' prefix (LiteLLM adds provider prefix for routing).
     """
     model = os.getenv("MODEL_NAME", "gpt-3.5-turbo")
     if os.getenv("OPENAI_BASE_URL") and model.startswith("openai/"):
@@ -27,12 +27,50 @@ def resolve_model() -> str:
     return model
 
 
-def get_openai_client() -> openai.AsyncOpenAI:
-    """Return a configured async OpenAI client."""
-    return openai.AsyncOpenAI(
-        api_key=os.getenv("OPENAI_API_KEY", "dummy"),
-        base_url=os.getenv("OPENAI_BASE_URL", None),
-    )
+def get_llm_client():
+    """Return a configured LiteLLM client wrapper.
+
+    LiteLLM auto-appends /v1 to base_url, so no manual appending needed.
+    Returns a callable that mimics OpenAI SDK interface for compatibility.
+    """
+    api_key = os.getenv("OPENAI_API_KEY", "dummy")
+    base_url = os.getenv("OPENAI_BASE_URL", None)
+
+    class LiteLLMClient:
+        def __init__(self, api_key, base_url):
+            self.api_key = api_key
+            self.base_url = base_url
+
+        @property
+        def chat(self):
+            return self
+
+        @property
+        def completions(self):
+            return self
+
+        async def create(self, **kwargs):
+            """Mimics OpenAI SDK's client.chat.completions.create() interface."""
+            # LiteLLM uses OpenAI SDK under the hood, which doesn't auto-append /v1
+            # So we need to ensure api_base ends with /v1 for vLLM compatibility
+            api_base = self.base_url
+            if api_base and not api_base.endswith("/v1"):
+                api_base = api_base.rstrip("/") + "/v1"
+            # Set 21k output tokens (leaving 189k for input in 210k context)
+            if "max_tokens" not in kwargs:
+                kwargs["max_tokens"] = 21000
+            return await litellm.acompletion(
+                api_key=self.api_key,
+                api_base=api_base,
+                custom_llm_provider="openai",
+                **kwargs
+            )
+
+    return LiteLLMClient(api_key, base_url)
+
+
+# Backward compatibility alias
+get_openai_client = get_llm_client
 
 
 # ── JSON Schema helpers ──────────────────────────────────────────────────
@@ -55,26 +93,8 @@ def build_json_schema(schema_obj: BaseModel | dict[str, Any]) -> dict[str, Any]:
     else:
         schema = dict(schema_obj)
 
-    return _resolve_refs(schema)
+    return _flatten_schema(schema)
 
-
-def _resolve_refs(schema: Any) -> Any:
-    """Recursively resolve $ref pointers in a JSON Schema dict."""
-    if isinstance(schema, dict):
-        if "$ref" in schema:
-            # Resolve the reference
-            ref_path = schema["$ref"]  # e.g. "#/$defs/DimensionScores"
-            parts = ref_path.split("/")
-            if len(parts) >= 3 and parts[0] == "#" and parts[1] == "$defs":
-                # Need to find the actual schema — we'll do a deferred pass
-                # For now return a placeholder marker and resolve in parent
-                return schema
-            return schema
-        # Recurse into all values
-        return {k: _resolve_refs(v) for k, v in schema.items()}
-    elif isinstance(schema, list):
-        return [_resolve_refs(item) for item in schema]
-    return schema
 
 
 def _flatten_schema(schema: dict) -> dict:
@@ -148,4 +168,6 @@ def parse_structured_response(response) -> dict:
     import json
 
     content = response.choices[0].message.content
+    if not content or not content.strip():
+        raise ValueError("LLM returned empty content")
     return json.loads(content.strip())
