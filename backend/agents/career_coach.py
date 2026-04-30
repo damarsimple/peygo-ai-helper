@@ -160,7 +160,7 @@ llm_model = LiteLlm(
     extra_body=_extra_body if _extra_body else None,
     drop_params=True,
     # Set output tokens to 21k (leaving 189k for input in 210k context)
-    max_tokens=21000,
+    max_tokens=190000,
 )
 
 # ── Agent ─────────────────────────────────────────────────────────────────
