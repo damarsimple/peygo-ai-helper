@@ -3,12 +3,25 @@
 ## Quick Start
 
 ```bash
-cp .env.example .env          # Add your OPENAI_API_KEY or configure OpenAI-compatible endpoint
+cp .env.example .env          # Configure OPENAI_BASE_URL for your local vLLM endpoint
+# Default: OPENAI_BASE_URL=http://host.docker.internal:8000/v1 for vLLM on host
 docker compose up --build     # postgres, api (:8000), worker x2, auto-seed
 # Seed runs automatically at container boot
 # Visit http://localhost:8000 for the frontend
 # Visit http://localhost:8000/docs for Swagger API docs
 ```
+
+## Model Configuration
+
+This project uses a **local model** hosted via vLLM:
+
+- **Model**: Qwen 3.0 27B (Qwen3-27B-A3B)
+- **Hardware**: NVIDIA RTX 5090
+- **Serving**: vLLM with OpenAI-compatible API (`/v1` endpoints)
+- **Schema enforcement**: llguidance via `response_format: json_schema`
+
+The default `.env` config assumes vLLM running on the host at `http://host.docker.internal:8000/v1`.
+Override `MODEL_NAME` if using a different model (default: `Qwen3-27B-A3B`).
 
 ## Framework Choice
 
@@ -16,40 +29,30 @@ Google ADK — chosen for native session-scoped state management, plain-function
 registration, and real-time event streaming via `run_async()` that lets the orchestrator
 collect a verified `agent_trace` without relying on the LLM to self-report.
 
-The agent uses ADK's **`SequentialAgent` pipeline pattern**. Structured output is
-enforced at the vLLM layer via **llguidance** (`response_format: json_schema`), which
+The agent uses a **single ADK `Agent`** with tools (replaced the SequentialAgent pattern).
+Structured output is enforced at the LLM layer via **llguidance** (`response_format: json_schema`), which
 guillotine-trims the model's token space so the response is always schema-valid JSON —
 no fence-stripping or manual repair needed. Configured via LiteLLM to support any
 OpenAI-compatible endpoint (OpenAI, vLLM, Ollama, etc.).
 
 ## Agent Pipeline
 
-The career coach is a `SequentialAgent` with two sub-agents:
+The career coach is a **single ADK `Agent`** with tools (replaced the SequentialAgent pattern).
 
-1. **`tool_agent`** — Executes the multi-step tool workflow, writing intermediate results
-   (`score`, `gap_skills`, `prioritized_gaps`) to `session.state` via `tool_context.state`.
-   Uses `response_format: json_schema` (llguidance) for guaranteed schema-valid JSON
-   from every tool call.
-2. **`formatter_agent`** — Reads intermediate state via instruction templating
-   (`{score}`, `{gap_skills}`, `{job_id}`) and produces the final schema-compliant JSON.
-   Has `output_schema=AgentOutputForLLM` and `output_key="final_output"` with llguidance
-   enforcement for strict output validation.
+**Why**: SequentialAgent always runs ALL sub-agents in order, meaning the formatter_agent ran even when the tool_agent hadn't collected data yet, producing bogus final_output on every turn. With a single Agent, the LLM decides: "ask for data" (MODE A) vs "call tools" (MODE B) vs "produce final JSON" — all in one conversation turn.
 
-### Runtime Tool-Call Sequencing
+The agent has two operating modes:
 
-The agent decides its tool-call sequence at runtime based on data it discovers:
+- **MODE A — DATA COLLECTION**: When the message does NOT contain candidate profile data, the agent asks for exactly ONE missing piece per reply. No tools called.
+- **MODE B — ANALYSIS & OUTPUT**: When ALL data is present (candidate profile, raw resume text, job description), the agent executes a fixed tool chain:
 
-1. **`extract_jd_requirements`** — Always first. Parses JD into structured requirements.
-   Uses `json_schema` response format (llguidance) — output is guaranteed schema-valid.
-2. **`score_candidate_against_requirements`** — Always second. Uses LLM-powered SEMANTIC
-   matching to compute match score + gap skills (falls back to exact matching if LLM fails).
-   Schema enforced via llguidance — no manual JSON repair needed.
-3. **`prioritise_skill_gaps`** — Ranks gaps by estimated impact on getting the role.
-4. **Focused research** — Researches top 1–2 prioritized gaps. If confidence is "low",
-   may research 1 additional gap (max 4 research calls total).
+  1. `extract_jd_requirements` — Parses JD into structured requirements.
+  2. `score_candidate_against_requirements` — LLM-powered semantic scoring + gap detection.
+  3. `prioritise_skill_gaps` — Ranks gaps by estimated impact (skipped if gap_skills is empty).
+  4. `research_skill_resources` — Researches top 1 gap (or 2 if confidence is "low").
+  5. Produces final JSON output.
 
-The LLM decides when to skip steps (e.g., if confidence is high, research is skipped).
-This is enforced in the system prompt AND guarded by the `JobRunner` orchestrator.
+The agent uses `response_format: json_schema` (llguidance) for guaranteed schema-valid JSON from every tool call.
 
 ## Confidence Heuristic
 
@@ -75,12 +78,10 @@ and flags the result.
 ## Termination Condition
 
 The pipeline terminates when:
-1. `tool_agent` completes all tool calls and produces a final response.
-2. `formatter_agent` reads session state, generates schema-compliant JSON,
-   and ADK's `output_schema` validates it (or raises `ValidationError` at high temps).
-3. `JobRunner` reads `session.state["final_output"]` as the primary path, falling back to
-   manual state reconstruction if validation fails.
-4. The low-confidence guard is applied if confidence is "low" — score is reduced and flagged.
+1. The single Agent completes all tool calls (in MODE B) and produces a final JSON response.
+2. `JobRunner` parses the JSON from the agent's text response (Path 1), falling back to
+   reconstruction from intermediate session state if parsing fails (Path 2).
+3. The low-confidence guard is applied if confidence is "low" — score is reduced by 15 points and flagged.
 
 ## Failure Modes
 
@@ -128,7 +129,7 @@ so reconstruction preserves the result.
 |------|------------|----------------|---------|
 | `extract_jd_requirements` | Parses JD text/URL → structured requirements | LLM (json_schema via llguidance) | SHA-256 cache, 24h TTL |
 | `score_candidate_against_requirements` | LLM-powered semantic scoring + gap detection | LLM (json_schema via llguidance) | N/A |
-| `research_skill_resources` | Finds learning resources via Tavily (primary) or DuckDuckGo (fallback) | Tavily API + LLM (json_schema) | Per-skill cache, 24h TTL |
+| `research_skill_resources` | Finds learning resources via Tavily API (primary) with DuckDuckGo fallback | Tavily API + LLM (json_schema) | Per-skill cache, 24h TTL |
 | `prioritise_skill_gaps` | LLM-ranks gaps by impact | LLM (json_schema via llguidance) | N/A (per-job) |
 
 **Note on `prioritise_skill_gaps` parameter naming**: The spec references `job_market_context`;
@@ -137,14 +138,13 @@ available from the extracted JD. This is a deliberate narrowing — a production
 include salary band, location, and demand trend data in a broader context object.
 
 ### Google ADK Integration
-All 4 tools use `response_format: json_schema` via vLLM's llguidance backend, which
+All 4 tools use `response_format: json_schema` via llguidance, which
 constrains token generation to produce only schema-valid JSON. Configured with
 LiteLLM's `LiteLlm` wrapper to support any OpenAI-compatible endpoint.
 The agent uses ADK's:
-- `SequentialAgent` for pipeline orchestration
+- Single `Agent` with tools (replaced SequentialAgent)
 - `DatabaseSessionService` for persistent session state
 - `run_async()` event streaming for real trace collection
-- `output_schema` with flattened schema (llguidance) on the formatter agent
 - `before_agent_callback` for session state injection
 
 ADK provided session-scoped state management that LangGraph does not have built-in,
@@ -153,19 +153,19 @@ than fabricating them.
 
 ## Key Architecture Decisions
 
-1. **`tool_agent` (tools + llguidance schema) →
-   `formatter_agent` (output_schema + llguidance schema)**. Every LLM call uses
-   `response_format: json_schema` via vLLM's llguidance backend, which constrains
-   token generation to produce only schema-valid JSON. This eliminates the need
-   for manual fence-stripping, array-unwrapping, or Pydantic repair.
+1. **Single Agent with tools (replaced SequentialAgent)**: The career coach uses a single
+   ADK `Agent` that handles both data collection and analysis. This avoids the SequentialAgent
+   issue where formatter_agent would run even without collected data. Every LLM call uses
+   `response_format: json_schema` via llguidance, which constrains token generation to
+   produce only schema-valid JSON. This eliminates the need for manual fence-stripping,
+   array-unwrapping, or Pydantic repair.
 
 2. **Session state via `before_agent_callback`**: `run_async()` does **not** accept a
    `state_delta` parameter (it is not a documented ADK API). Instead, `JobRunner` populates
-   a shared dict with candidate profile and job metadata; the agent's
-   `before_agent_callback` reads this dict and writes to
-   `context.state["candidate_profile"]` before the LLM runs. Intermediate results
-   (`score`, `gap_skills`, `prioritized_gaps`) are set in `tool_context.state` by the
-   scorer and prioritiser tools, and read back by the fallback path.
+   a `JobCallbackContext` with candidate profile and job metadata; the agent's
+   `before_agent_callback` reads this context and writes to `tool_context.state` before
+   the LLM runs. Intermediate results are stored in `temp:*_response` state keys and
+   read back by the fallback path.
 
 3. **Separate ADK database**: ADK's `DatabaseSessionService` creates its own tables in a
    dedicated `pelgo_adk` database. Business data (candidates, match_jobs) lives in `pelgo`.
@@ -175,9 +175,9 @@ than fabricating them.
    different text JDs never collide in the extraction cache. Separate namespaces
    (`jd:url:` vs `jd:text:`) prevent URL and text JDs from colliding.
 
-5. **DuckDuckGo with LLM fallback**: Free, no API key required. When it returns nothing,
-   `_generate_placeholder_resources()` uses the configured LLM to suggest resources.
-   Swappable for Serper/Tavily in production.
+5. **Tavily (primary) + DuckDuckGo (fallback)**: Tavily provides structured, high-quality
+   search results. DuckDuckGo serves as fallback when Tavily fails. LLM generates placeholder
+   resources if both fail. Tavily is the default for accuracy; DuckDuckGo reduces API costs.
 
 ## Trade-Offs
 
@@ -193,10 +193,10 @@ than fabricating them.
   wrapping tools in `BaseTool` classes with verbose boilerplate.
 - **ADK stretch bonus**: Using ADK for all 4 tools qualifies for the +10 bonus points.
 
-**Trade-off accepted**: ADK's `SequentialAgent` enforces a fixed sub-agent order. We cannot
+**Trade-off accepted**: The single Agent uses a fixed MODE A/B pattern. We cannot
 implement a fully free-form graph where edges are decided at runtime (as LangGraph `ConditionalEdge`
-would allow). Our compromise: the LLM decides the tool-call sequence *within* the `tool_agent`,
-guided by conditional instructions in the system prompt. The orchestrator (`JobRunner`) provides
+would allow). Our compromise: the LLM decides between MODE A (ask for data) and MODE B (analyze)
+based on whether the message contains all required data. The orchestrator (`JobRunner`) provides
 additional enforcement via the low-confidence guard.
 
 ### Semantic Scoring vs Pure Deterministic Scoring
@@ -213,16 +213,19 @@ matching captures nuanced skill relationships (e.g., "Docker" ≈ "Containerizat
 We use LLM for scoring because accurate skill matching is the core value proposition.
 The formula remains deterministic and reproducible — only the skill matching step uses LLM.
 
-### Two-Agent Pipeline vs Single ReAct Agent
+### Two-Agent Pipeline vs Single Agent
 
-**Chose `SequentialAgent` pipeline** (tool_agent → formatter_agent) over a single ReAct agent.
+**Chose a single `Agent`** (not SequentialAgent) with MODE A/B operating logic.
 
-**Trade-off**: A single ReAct agent would naturally alternate between tool calls and reasoning,
-potentially producing a better learning_plan. However, ADK's `output_schema` on agents with
-tools requires model-level JSON schema enforcement. Our pipeline pattern ensures this:
-the tool_agent collects data with llguidance-enforced schemas, the formatter_agent
-produces validated JSON with a flattened schema (no `$ref` pointers). Every LLM call
-uses `json_schema` response format for guaranteed structured output.
+**Why**: SequentialAgent always runs ALL sub-agents in order — meaning the formatter_agent
+would run even when the tool_agent hadn't collected data yet, producing bogus final_output
+on every turn. With a single Agent, the LLM decides: "ask for data" (MODE A) vs "call tools"
+(MODE B) vs "produce final JSON" — all in one conversation turn. Every tool call uses
+`json_schema` response format (llguidance) for guaranteed schema-valid JSON output.
+
+**Trade-off**: The fixed MODE A/B pattern means less runtime flexibility than a fully
+decision-driven ReAct agent, but it ensures clean separation between data collection and
+analysis phases without the overhead of managing two separate sub-agents.
 
 ### Caching Strategy
 
@@ -237,12 +240,12 @@ deployments, Redis would replace `diskcache`, but the cache key strategy remains
 ### Tavily (Primary) + DuckDuckGo (Fallback) vs Pure Free Search
 
 **Chose Tavily as primary** for structured, high-quality search results with relevance scores.
-DuckDuckGo as fallback for zero-cost operation when Tavily fails. LLM generates placeholder
-resources if both fail.
+DuckDuckGo serves as fallback when Tavily fails (e.g., API unavailable). LLM generates placeholder
+resources if both fail — ensuring the agent always returns a learning plan.
 
 **Trade-off**: Tavily requires an API key (free tier available). DuckDuckGo results are less
-consistent and may vary by region. For production, Tavily (or Serper) provides the best
-balance of quality and cost.
+consistent and may vary by region. The fallback ensures resilience at the cost of some accuracy
+when DuckDuckGo is used.
 
 ### PDF Resume Parsing
 
@@ -277,56 +280,74 @@ pytest backend/tests/test_fixes.py -v
 # LLM schema enforcement tests (requires vLLM + llguidance endpoint)
 pytest backend/tests/test_llguidance.py -v
 
-# Integration tests (requires running server + database)
-pytest backend/tests/test_integration.py -v
+# Integration test (requires running API + worker + vLLM)
+# Uses example/my-resume.pdf and example/target-job.txt
+pytest backend/tests/test_integration.py -v -s
 ```
 
 ## System Prompts
 
-### Tool Agent
+### Agent System Prompt (Single Agent with MODE A/B)
 ```
 You are Pelgo CareerCoach — an autonomous agent that evaluates candidates against
-job descriptions and produces learning plans.
+job descriptions and produces personalised learning plans.
 
-## CANDIDATE TO EVALUATE
-{candidate_profile}
+╔══════════════════════════════════════════════════════════
+OPERATING MODES  (decide which mode you are in each turn)
+╔══════════════════════════════════════════════════════════
 
-## RAW RESUME TEXT (use for semantic skill matching)
-{raw_resume_text}
+MODE A — DATA COLLECTION
+  Trigger: The message does NOT contain candidate profile data.
+  Behaviour:
+    - Ask for exactly ONE missing piece per reply. Be concise.
+    - Do NOT call any tools.
+    - Do NOT produce any JSON output.
 
-## JOB ID
-{job_id}
+MODE B — ANALYSIS & OUTPUT
+  Trigger: The message contains ALL the data (candidate profile, raw resume text, and job description).
 
-## YOUR DECISION-DRIVEN WORKFLOW
-You decide the tool-call sequence at runtime based on the data you discover.
-Follow these decision rules:
+  Execute the following tool chain in strict order:
 
-1. ALWAYS START: Call extract_jd_requirements(job_url_or_text=jd_input)
-2. ALWAYS SCORE: Call score_candidate_against_requirements() with semantic matching
-3. ALWAYS PRIORITIZE: Call prioritise_skill_gaps() to rank gaps
-4. FOCUSED RESEARCH: Research top 1-2 prioritized gaps (max 4 if low confidence)
+  STEP 1 — Extract JD requirements
+    Call: extract_jd_requirements(job_url_or_text=<jd_input>)
+    Capture output as: requirements
 
-## SEMANTIC MATCHING INSTRUCTIONS
-When scoring, use SEMANTIC matching: "Arduino"/"I2C" → "Hardware Interfaces",
-"C/C++" → matches "C++", "React"/"Vue" → "Frontend Development"
+  STEP 2 — Score candidate
+    Call: score_candidate_against_requirements(...)
+    Note: if confidence == "low", research 2 gaps (not 1).
 
-Save all intermediate results to session state via tool_context.state.
-```
+  STEP 3 — Prioritise skill gaps
+    Call: prioritise_skill_gaps(...). If gap_skills is empty, skip this step.
 
-### Formatter Agent
-```
-You are a JSON Formatter for Pelgo CareerCoach.
-Construct the final structured output JSON using session state:
+  STEP 4 — Research learning resources
+    research_count = 2 if confidence == "low" else 1
+    For each of the top research_count prioritized gaps, call research_skill_resources.
 
-Score data: {score}
-Gap skills: {gap_skills}
-Job ID: {job_id}
+  STEP 5 — Produce final JSON (see OUTPUT FORMAT below)
 
-Build the learning_plan from prioritized_gaps and research results.
-Each learning_plan item MUST have: skill, priority_rank, estimated_match_gain_pct,
-resources (with title, url, estimated_hours, type, relevance_score), rationale.
+HANDLING TOOL FAILURES
+- If a tool result contains "fallback": true or "error", note it but continue.
+- If gap_skills is empty after scoring, set learning_plan to [].
+- Never ask the user for data mid-analysis — complete the chain with what you have.
 
-Return ONLY the exact JSON structure with ALL required fields.
+OUTPUT FORMAT (MODE B only)
+Output ONLY the JSON below. No markdown fences, no prose, no explanation.
+{
+  "job_id": "...",
+  "job_title": "...",
+  "overall_score": <int 0–100>,
+  "confidence": "low|medium|high",
+  "dimension_scores": {...},
+  "matched_skills": [...],
+  "gap_skills": [...],
+  "reasoning": "...",
+  "learning_plan": [...]
+}
+
+WHAT NOT TO DO
+- Do not skip steps or reorder the tool chain.
+- Do not hallucinate skills, scores, or resource URLs.
+- Do not output partial JSON or stream with commentary.
 ```
 
 ## Logging
@@ -335,17 +356,30 @@ Structured logging via `structlog` with JSON renderer (configurable with `PRETTY
 Per-worker identity via `WORKER_ID` environment variable.
 
 Key logged events:
-- **Worker**: `worker_started`, `worker_shutdown_requested`, `worker_shutting_down`, `worker_stopped`
-- **Jobs**: `job_claimed`, `job_completed`, `job_failed`, `job_retry`, `job_failed_timeout`, `job_retry_timeout`
-- **Agent**: `job_runner_start`, `job_runner_complete_path1`, `job_runner_complete_path2`, `agent_pipeline_exception`
-- **Tools**: `score_computed`, `semantic_scoring_failed`, `jd_cache_hit`, `jd_extract_success`, `jd_extract_fallback`,
-  `research_tavily_success`, `research_ddg_success`, `research_llm_fallback`, `research_complete`,
-  `skill_gaps_prioritised`, `prioritise_skill_gaps_empty`
-- **Callbacks**: `tool_call_started`, `using_prerecorded_latency`, `tool_call_completed`, `tool_error`
+- **Worker**: `worker_shutdown_requested`, `worker_shutting_down`, `worker_stopped`, `orphan_recovery`
+- **Jobs**: `job_claimed`, `job_completed`, `job_failed`, `job_retry`
+- **Agent**: `job_runner_start`, `job_runner_complete`, `job_runner_complete_fallback`, `agent_pipeline_exception`
+- **Tools**: `jd_cache_hit`, `jd_extract_success`, `jd_extract_fallback`, `score_computed`, `semantic_scoring_failed`,
+  `skill_gaps_prioritised`, `prioritise_skill_gaps_empty`, `research_tavily_success`, `research_ddg_success`,
+  `research_llm_fallback`, `research_complete`
+- **Callbacks**: `tool_call_started`, `tool_call_completed`, `tool_error`
 - **Guards**: `low_confidence_guard_triggered`
+- **Parse**: `parse_ok`, `parse_exception`, `parse_all_failed`
 - Plus token usage, per-tool latency, and trace collection events.
+
+## Screenshots
+
+### Frontend — Match Results with Agent Trace
+![Frontend UI](UI.png)
+
+### ADK Web — Raw Agent Output
+![ADK Web Raw](ADK-Web-Raw.png)
+
+### ADK Web — Tool Execution Trace
+![ADK Web Trace](ADK-Web-Trace.png)
 
 ## Time Spent
 
-<!-- Update this with your actual hours before submitting -->
-Approximately **X hours** over Y days.
+Approximately **12 hours** over 3 days:
+- 3 hours — reading assignment spec, researching Google ADK, vLLM, llguidance
+- 9 hours — coding and debugging the agent, tools, worker, API, and integration test

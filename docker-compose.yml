@@ -32,7 +32,7 @@ services:
       ADK_DATABASE_URL: postgresql+asyncpg://pelgo:pelgo@postgres:5432/pelgo_adk
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
-      MODEL_NAME: ${MODEL_NAME:-gpt-3.5-turbo}
+      MODEL_NAME: ${MODEL_NAME:-Qwen3-27B-A3B}
       TAVILY_API_KEY: ${TAVILY_API_KEY:-}
     depends_on:
       postgres:
@@ -58,7 +58,7 @@ services:
       ADK_DATABASE_URL: postgresql+asyncpg://pelgo:pelgo@postgres:5432/pelgo_adk
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
-      MODEL_NAME: ${MODEL_NAME:-gpt-3.5-turbo}
+      MODEL_NAME: ${MODEL_NAME:-Qwen3-27B-A3B}
       TAVILY_API_KEY: ${TAVILY_API_KEY:-}
       WORKER_ID: worker-1
       LITELLM_LOG: DEBUG
@@ -81,7 +81,7 @@ services:
       ADK_DATABASE_URL: postgresql+asyncpg://pelgo:pelgo@postgres:5432/pelgo_adk
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
-      MODEL_NAME: ${MODEL_NAME:-gpt-3.5-turbo}
+      MODEL_NAME: ${MODEL_NAME:-Qwen3-27B-A3B}
       TAVILY_API_KEY: ${TAVILY_API_KEY:-}
       WORKER_ID: worker-2
     depends_on:
@@ -103,7 +103,7 @@ services:
       ADK_DATABASE_URL: postgresql+asyncpg://pelgo:pelgo@postgres:5432/pelgo_adk
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
-      MODEL_NAME: ${MODEL_NAME:-gpt-3.5-turbo}
+      MODEL_NAME: ${MODEL_NAME:-Qwen3-27B-A3B}
       TAVILY_API_KEY: ${TAVILY_API_KEY:-}
     depends_on:
       postgres:
