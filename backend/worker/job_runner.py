@@ -1,4 +1,5 @@
 import json
+import os
 import structlog
 from google.genai import types
 from google.adk.runners import Runner
@@ -11,6 +12,8 @@ from backend.worker.trace_collector import AgentTraceCollector
 from backend.worker import callbacks as cb
 
 log = structlog.get_logger()
+
+LLM_OUTPUT_DIR = os.getenv("LLM_OUTPUT_DIR", "/tmp/pelgo_llm_output")
 
 
 class JobRunner:
@@ -43,7 +46,10 @@ class JobRunner:
         job_id_str = str(job_id)
         candidate_id_str = str(candidate_id)
 
-        log.info("job_runner_start", job_id=job_id_str, candidate_id=candidate_id_str)
+        os.makedirs(LLM_OUTPUT_DIR, exist_ok=True)
+        llm_output_file = os.path.join(LLM_OUTPUT_DIR, f"{job_id_str}.log")
+
+        log.info("job_runner_start", job_id=job_id_str, candidate_id=candidate_id_str, llm_output_file=llm_output_file)
 
         # Typed per-job callback context (replaces bare dict).
         cb._cb_state = cb.JobCallbackContext(
@@ -62,9 +68,6 @@ class JobRunner:
         try:
             trace_collector = AgentTraceCollector(callback_state=cb._cb_state.latency)
 
-            # Collect final text from the event stream.
-            # With a single Agent (no SequentialAgent), we parse the final
-            # response directly from the last text event.
             final_texts = []
             event_debug = []
 
@@ -108,6 +111,9 @@ Please analyze the candidate against this job description using the tools availa
                         for part in event.content.parts:
                             if hasattr(part, 'text') and part.text:
                                 final_texts.append(part.text)
+                                with open(llm_output_file, "a") as llm_out:
+                                    llm_out.write(f"## LLM Output (event {len(event_debug)})\n")
+                                    llm_out.write(part.text + "\n\n")
                 log.info(
                     "job_runner_events", job_id=job_id_str,
                     total_events=len(event_debug), collected_texts=len(final_texts),
@@ -139,6 +145,10 @@ Please analyze the candidate against this job description using the tools availa
             if parsed is not None:
                 output = AgentOutput(**parsed.model_dump())
                 output.job_id = job_id_str
+
+                with open(llm_output_file, "a") as llm_out:
+                    llm_out.write("## Final Parsed Output\n")
+                    llm_out.write(output.model_dump_json(indent=2) + "\n")
 
                 # ── Low-confidence guard ──────────────────────────────
                 if output.confidence == "low":
@@ -276,7 +286,14 @@ Please analyze the candidate against this job description using the tools availa
 
     @staticmethod
     def _parse_text_as_json(text: str) -> AgentOutputForLLM | None:
-        """Parse raw text response as structured JSON."""
+        """Parse raw text response as structured JSON.
+
+        Handles models that emit chain-of-thought / thinking text before the
+        JSON payload.  We scan forward for every '{' and attempt a full JSON
+        decode from that position.  json.JSONDecoder.raw_decode() stops at the
+        end of the first valid JSON object, so it is safe even when additional
+        text follows the closing '}'.
+        """
         if isinstance(text, dict):
             try:
                 return AgentOutputForLLM.model_validate(text)
@@ -287,17 +304,31 @@ Please analyze the candidate against this job description using the tools availa
         for tag in ("\x1e", "\x1f"):
             cleaned = cleaned.replace(tag, "")
 
-        brace_start = cleaned.find('{')
-        brace_end = cleaned.rfind('}')
-        if brace_start == -1 or brace_end <= brace_start:
-            return None
+        decoder = json.JSONDecoder()
+        search_start = 0
+        while True:
+            brace_start = cleaned.find("{", search_start)
+            if brace_start == -1:
+                return None  # No more candidates — give up.
 
-        try:
-            data = json.loads(cleaned[brace_start:brace_end + 1])
-            return AgentOutputForLLM.model_validate(data)
-        except Exception:
-            return None
-
+            try:
+                data, _ = decoder.raw_decode(cleaned, brace_start)
+                return AgentOutputForLLM.model_validate(data)
+            except (json.JSONDecodeError, ValueError) as e:
+                log.debug(
+                    "json_parse_attempt_failed",
+                    brace_start=brace_start,
+                    snippet=cleaned[brace_start:brace_start + 80],
+                    error=str(e),
+                )
+                search_start = brace_start + 1
+            except Exception as e:
+                log.warning(
+                    "pydantic_validation_failed",      # JSON was valid, schema wasn't
+                    error=str(e),
+                    snippet=cleaned[brace_start:brace_start + 80],
+                )
+                return None
     async def _build_fallback_learning_plan(
         self, source: list[dict], gap_skills: list[str],
     ) -> list[dict]:
