@@ -8,11 +8,10 @@ inaccurate wall-clock times.
 import time
 import json
 import hashlib
-from typing import Any
-
 import structlog
 
 from google.adk.events.event import Event
+from backend.worker.callbacks import ToolLatencyEntry
 
 log = structlog.get_logger()
 
@@ -25,7 +24,7 @@ class AgentTraceCollector:
     stream metadata.
     """
 
-    def __init__(self, callback_state: dict[str, Any] | None = None):
+    def __init__(self, callback_state: dict[str, ToolLatencyEntry] | None = None):
         """
         Args:
             callback_state: The shared dict populated by before_tool / after_tool
@@ -69,11 +68,10 @@ class AgentTraceCollector:
             # Try to get args from the function call to create unique ID
             args = fc.args if hasattr(fc, "args") else {}
             call_id = self._get_call_id(fc.name, args)
-            start_key = f"{fc.name}:{call_id}_start"
+            key = f"{fc.name}:{call_id}"
             # Read start time from callback_state (set by before_tool)
-            start_time = self._callback_state.get(start_key)
-            if start_time is None:
-                start_time = time.time()
+            entry = self._callback_state.get(key)
+            start_time = entry.start_time if entry is not None else time.time()
             # Store with tool_name as key (for simple lookup)
             if fc.name not in self._tool_starts:
                 self._tool_starts[fc.name] = []
@@ -87,7 +85,8 @@ class AgentTraceCollector:
                 call_id = self._get_call_id(fr.name, args)
                 
                 # Try callback_state first (latency computed by after_tool)
-                latency_ms = self._callback_state.get(f"{fr.name}:{call_id}_latency_ms")
+                entry = self._callback_state.get(f"{fr.name}:{call_id}_latency_ms")
+                latency_ms = entry.latency_ms if entry is not None else None
                 
                 # Fallback: compute from start time (use queue-based approach)
                 if latency_ms is None and fr.name in self._tool_starts and self._tool_starts[fr.name]:

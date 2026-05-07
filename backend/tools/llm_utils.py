@@ -8,7 +8,6 @@ With llguidance on vLLM (json_schema response format), responses are
 guaranteed schema-valid JSON — no fence-stripping or array-unwrapping needed.
 """
 import os
-from typing import Any
 
 import litellm
 
@@ -76,7 +75,7 @@ get_openai_client = get_llm_client
 # ── JSON Schema helpers ──────────────────────────────────────────────────
 
 
-def build_json_schema(schema_obj: BaseModel | dict[str, Any]) -> dict[str, Any]:
+def build_json_schema(schema_obj: BaseModel | dict) -> dict:
     """Build a flattened, self-contained JSON Schema from a Pydantic model or dict.
 
     vLLM's llguidance backend needs a fully inlined schema — no external
@@ -101,7 +100,7 @@ def _flatten_schema(schema: dict) -> dict:
     """Resolve all $defs references inline to produce a self-contained schema."""
     defs = schema.pop("$defs", {})
 
-    def resolve(node: Any) -> Any:
+    def resolve(node: dict | list | str | int | float | bool | None) -> dict | list | str | int | float | bool | None:
         if isinstance(node, dict):
             if "$ref" in node:
                 ref = node["$ref"]

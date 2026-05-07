@@ -53,12 +53,12 @@ class JobRunner:
 
         # Typed per-job callback context (replaces bare dict).
         cb._cb_state = cb.JobCallbackContext(
-            job_data={
-                "candidate_profile": candidate.model_dump(),
-                "raw_resume_text": candidate.raw_text if hasattr(candidate, 'raw_text') else "",
-                "job_description": jd_input,
-                "job_id": job_id_str,
-            }
+            job_data=cb.JobData(
+                candidate_profile=candidate,
+                raw_resume_text=candidate.raw_text if hasattr(candidate, "raw_text") else "",
+                job_description=jd_input,
+                job_id=job_id_str,
+            )
         )
 
         # Wire the before_agent_callback to see this job's data.
