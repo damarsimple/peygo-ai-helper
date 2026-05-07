@@ -435,3 +435,23 @@ require temperature > 0 on the orchestrator.
 **Verification:** 3 parallel jobs, same candidate + JD:
 - All returned: Skills 26, Experience 66, Seniority 100, Overall 40
 - Reasoning wording varied slightly — acceptable for long-form generation
+
+### Agent Orchestration — Goal-Driven Refactor
+
+**Problem:** Original system prompt hardcoded the tool sequence as explicit 
+steps (STEP 1 → STEP 2 → STEP 3 → STEP 4), which technically satisfied the 
+pipeline but violated the assignment's intent of runtime tool sequencing.
+
+**Fix:** Replaced rigid steps with tool usage principles and data dependency 
+reasoning. The LLM now decides which tools to call, in what order, and how 
+many times — based on what it learns from each tool result.
+
+**What changed:**
+- Removed explicit STEP 1-4 instructions
+- Replaced with goal statement + data dependency rationale
+- Added explicit termination condition ("stop when you have enough signal")
+- Low confidence now triggers active reasoning, not just a counter increment
+
+**Verified via ADK trace:** Orchestrator correctly resolves data dependencies 
+across runs and autonomously varies research depth — 3 skills researched on 
+one run, 4 on another — without explicit instruction.
