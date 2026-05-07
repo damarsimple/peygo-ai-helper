@@ -21,7 +21,8 @@ _cache = Cache("/tmp/pelgo_cache")
 
 class ScoreOutput(BaseModel):
     """Schema for the LLM scoring response."""
-    matched_skills: list[str]
+    matched_required_skills: list[str]
+    matched_nice_to_have_skills: list[str]
     gap_skills: list[str]
     required_match_ratio: float = Field(ge=0.0, le=1.0)
     nice_to_have_match_ratio: float = Field(ge=0.0, le=1.0)
@@ -45,16 +46,15 @@ async def score_candidate_against_requirements(
     if cached is not None:
         log.debug("score_cache_hit", cache_key=cache_key)
         _record_latency(tool_context, start_time)
-        # Still need to populate session state
         if tool_context:
             tool_context.state["score"] = cached
             tool_context.state["gap_skills"] = cached.get("gap_skills", [])
         return cached
+
     # ── Semantic Skill Matching (LLM-powered, single call) ──────────
     required = requirements.get("required_skills", [])
     nice_to_have = requirements.get("nice_to_have_skills", [])
 
-    # Build comprehensive prompt with full context
     prompt = f"""You are a technical recruiter scoring a candidate's fit against job requirements.
     Use SEMANTIC and CONTEXTUAL matching — not just exact string comparison.
 
@@ -74,22 +74,27 @@ async def score_candidate_against_requirements(
     - Direct mentions (exact or aliased, e.g. "Postgres" matches "PostgreSQL")
     - Implied proficiency (e.g. "built REST APIs in Django" implies "REST" and "Python")
     - Related but weaker signals (e.g. "Arduino" partially matches "Embedded Systems")
-    Only list a skill in matched_skills if you are confident the candidate has it.
-    List everything else in gap_skills.
+    Only list a skill in matched_required_skills if you are confident the candidate has it.
+    List unmatched required skills in gap_skills.
 
-    2. required_match_ratio = matched required skills / total required skills (float 0–1).
-    Count only skills from required_skills — do not mix in nice_to_have_skills.
+    2. For each skill in nice_to_have_skills, apply the same matching logic.
+    List matched ones in matched_nice_to_have_skills (keep this list separate from matched_required_skills).
+    Do NOT include nice-to-have skills in gap_skills — gap_skills is for required skills only.
 
-    3. nice_to_have_match_ratio = matched nice-to-have skills / total nice-to-have skills.
+    3. required_match_ratio = len(matched_required_skills) / len(required_skills) (float 0–1).
+    If required_skills is empty, return 0.0.
+
+    4. nice_to_have_match_ratio = len(matched_nice_to_have_skills) / len(nice_to_have_skills) (float 0–1).
     If nice_to_have_skills is empty, return 0.0.
 
-    4. reasoning: 2 sentences max. Sentence 1 — what the candidate matches well and why.
+    5. reasoning: 2 sentences max. Sentence 1 — what the candidate matches well and why.
     Sentence 2 — the most critical gap and its impact on the role. Be specific, not generic.
 
     Return ONLY this JSON — no markdown, no explanation:
     {{
-    "matched_skills": ["skill1", "skill2"],
-    "gap_skills": ["missing1", "missing2"],
+    "matched_required_skills": ["skill1", "skill2"],
+    "matched_nice_to_have_skills": ["bonus1"],
+    "gap_skills": ["missing_required1", "missing_required2"],
     "required_match_ratio": 0.75,
     "nice_to_have_match_ratio": 0.5,
     "reasoning": "Candidate demonstrates X and Y which are core to this role. The primary gap is Z, which is required for [specific responsibility]."
@@ -107,7 +112,8 @@ async def score_candidate_against_requirements(
         response = await client.chat.completions.create(**payload)
         llm_result = parse_structured_response(response)
 
-        matched_required = llm_result.get("matched_skills", [])
+        matched_required = llm_result.get("matched_required_skills", [])
+        matched_nice = llm_result.get("matched_nice_to_have_skills", [])
         gap_skills = llm_result.get("gap_skills", [])
         required_ratio = llm_result.get("required_match_ratio", 0)
         nice_ratio = llm_result.get("nice_to_have_match_ratio", 0)
@@ -128,11 +134,16 @@ async def score_candidate_against_requirements(
             else:
                 gap_skills.append(req)
 
+        matched_nice = []
+        for skill in nice_to_have:
+            skill_l = skill.lower()
+            if any(skill_l in s for s in candidate_skills) or skill_l in raw_lower:
+                matched_nice.append(skill)
+
         required_ratio = len(matched_required) / max(len(required), 1)
-        nice_ratio = 0
+        nice_ratio = len(matched_nice) / max(len(nice_to_have), 1)
 
     candidate_exp = candidate_profile.get("years_experience", 0)
-    all_matched = list(set(matched_required))  # Deduplicated required matches
 
     # Weighted: required skills count 80%, nice-to-have 20%
     skill_score = required_ratio * 0.8 + nice_ratio * 0.2
@@ -196,7 +207,8 @@ async def score_candidate_against_requirements(
             "experience": int(exp_distance * 100),
             "seniority_fit": int(seniority_fit * 100),
         },
-        "matched_skills": all_matched,
+        "matched_skills": matched_required,
+        "matched_nice_to_have_skills": matched_nice,
         "gap_skills": gap_skills,
         "confidence": confidence,
     }
@@ -210,6 +222,7 @@ async def score_candidate_against_requirements(
         seniority_fit=round(seniority_fit, 2),
         jd_completeness=jd_completeness,
         gap_count=len(gap_skills),
+        nice_to_have_matched_count=len(matched_nice),
     )
 
     if tool_context:
