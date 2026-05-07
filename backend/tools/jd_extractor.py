@@ -135,7 +135,7 @@ async def extract_jd_requirements(
             payload = create_structured_request(
                 messages=[{"role": "user", "content": prompt}],
                 schema=schema,
-                temperature=1
+                temperature=0
             )
             response = await client.chat.completions.create(**payload)
             extracted = parse_structured_response(response)

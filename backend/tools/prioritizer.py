@@ -103,7 +103,7 @@ async def prioritise_skill_gaps(
             payload = create_structured_request(
                 messages=[{"role": "user", "content": prompt}],
                 schema=schema,
-                temperature=1
+                temperature=0
             )
             response = await client.chat.completions.create(**payload)
             parsed = parse_structured_response(response)

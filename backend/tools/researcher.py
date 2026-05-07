@@ -179,7 +179,7 @@ async def _llm_estimate_hours(resources: list[dict], skill: str, seniority: str)
         payload = create_structured_request(
             messages=[{"role": "user", "content": prompt}],
             schema=schema,
-            temperature=1
+            temperature=0
         )
         response = await client.chat.completions.create(**payload)
         estimates = parse_structured_response(response)
@@ -269,7 +269,7 @@ async def _generate_placeholder_resources(skill_name: str, seniority_context: st
     payload = create_structured_request(
         messages=[{"role": "user", "content": prompt}],
         schema=schema,
-        temperature=1
+        temperature=0
     )
     response = await client.chat.completions.create(**payload)
     parsed = parse_structured_response(response)

@@ -408,3 +408,30 @@ Approximately **12 hours** over 3 days:
 - **Antigravity** — Additional code assistance
 - **Google ADK Python Docs MCP** — For agent development kit integration
 - **Claude** — Used via chat for prompt engineering and design decisions
+
+## Post-Submission Improvements
+
+Completed after deadline during pre-interview testing. Documented here 
+for transparency.
+
+### Score Determinism Fix
+
+**Problem:** The same candidate scored differently across runs.
+- Run A: Skills 16, Experience 0, Seniority 70 → Overall 31
+- Run B: Skills 26, Experience 66, Seniority 100 → Overall 40
+
+**Root cause:** Default LLM temperature introducing sampling variance 
+in the scorer tool.
+
+**Fix:** Set `temperature=0` across all steps.
+
+**Trade-off considered:** Greedy decoding risks repetition/degeneration 
+on long generations. This risk is negligible here — the scorer outputs 
+short structured JSON, and empirical testing on GPT-4o class models 
+showed no degeneration. The orchestrator also remained coherent at 
+temperature=0, though this is model-dependent and smaller models may 
+require temperature > 0 on the orchestrator.
+
+**Verification:** 3 parallel jobs, same candidate + JD:
+- All returned: Skills 26, Experience 66, Seniority 100, Overall 40
+- Reasoning wording varied slightly — acceptable for long-form generation
